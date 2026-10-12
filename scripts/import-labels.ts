@@ -10,14 +10,16 @@
 // it again is safe.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
 import postgres from "postgres";
+import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
 import { z } from "zod";
 import { checkDetails, parseDesign } from "../entities/label";
-import { importLabel, type OdgItem, productNameFor } from "../entities/label-import";
+import { importLabel, isBarcodePicture, type OdgItem, productNameFor } from "../entities/label-import";
 import { databaseUrl } from "../lib/env";
 
 const { values, positionals } = parseArgs({
@@ -105,7 +107,7 @@ const sizeOf = (p: Node, sizes: Map<string, number>, fallback: number): number =
 
 const readOdg = (path: string) => {
 	const files = unzipSync(new Uint8Array(readFileSync(path)), {
-		filter: (file) => file.name === "content.xml" || file.name === "styles.xml",
+		filter: (file) => file.name === "content.xml" || file.name === "styles.xml" || file.name.startsWith("Pictures/"),
 	});
 	const decode = (name: string) => parser.parse(new TextDecoder().decode(files[name])) as Node[];
 	const content = decode("content.xml");
@@ -126,6 +128,7 @@ const readOdg = (path: string) => {
 	findLayout(styles);
 
 	const items: OdgItem[] = [];
+	const pictures: Picture[] = [];
 	const findFirstPage = (nodes: Node[]): Node | null => {
 		for (const n of nodes) {
 			if (tagOf(n) === "draw:page") return n;
@@ -154,7 +157,11 @@ const readOdg = (path: string) => {
 				sizes.get(attr(n, "draw:text-style-name") ?? "") ?? sizes.get(attr(n, "draw:style-name") ?? "") ?? defaultSize;
 			const image = childrenOf(n).find((c) => tagOf(c) === "draw:image");
 			if (tag === "draw:frame" && image) {
-				if (widthMm > 0 && heightMm > 0) items.push({ kind: "image", xMm, yMm, widthMm, heightMm });
+				if (widthMm > 0 && heightMm > 0) {
+					const item: OdgItem = { kind: "image", xMm, yMm, widthMm, heightMm };
+					items.push(item);
+					pictures.push({ item, href: attr(image, "xlink:href") ?? "" });
+				}
 				continue;
 			}
 			const paragraphs: Node[] = [];
@@ -172,7 +179,46 @@ const readOdg = (path: string) => {
 		}
 	};
 	if (firstPage) visit(childrenOf(firstPage));
-	return { page, items };
+	return { page, items, pictures, files };
+};
+
+// ─── Reading barcode pictures ────────────────────────────────────────────────
+// The old labels hold the barcode as a picture, so its number is read from the
+// bars with ZXing (the same reader the scan screen uses), from the local wasm.
+
+type Picture = { item: OdgItem & { kind: "image" }; href: string };
+
+const require = createRequire(import.meta.url);
+prepareZXingModule({
+	overrides: { wasmBinary: readFileSync(require.resolve("zxing-wasm/reader/zxing_reader.wasm")) },
+});
+
+/** Why a barcode picture gave no number, for the summary at the end. */
+type Unread =
+	| "the picture is a vector drawing (SVG/WMF/EMF), which can't be read"
+	| "the picture is linked, not saved inside the file"
+	| "no barcode was found in the picture";
+
+const READABLE = /\.(png|jpe?g|gif|bmp|tiff?)$/i;
+
+/** Reads each barcode picture in place (item.decoded); returns why one couldn't be read. */
+const readBarcodePictures = async (pictures: Picture[], files: Record<string, Uint8Array>): Promise<Unread | null> => {
+	let unread: Unread | null = null;
+	for (const { item, href } of pictures.filter((p) => isBarcodePicture(p.item))) {
+		const bytes = files[href];
+		if (!bytes) {
+			unread ??= "the picture is linked, not saved inside the file";
+			continue;
+		}
+		if (!READABLE.test(href)) {
+			unread ??= "the picture is a vector drawing (SVG/WMF/EMF), which can't be read";
+			continue;
+		}
+		const [found] = await readBarcodes(bytes, { formats: ["ITF", "EAN-13"], tryHarder: true });
+		item.decoded = found?.isValid ? found.text : null;
+		if (!item.decoded) unread ??= "no barcode was found in the picture";
+	}
+	return unread;
 };
 
 // ─── Walk the folder ─────────────────────────────────────────────────────────
@@ -195,12 +241,15 @@ const main = async () => {
 	let replaced = 0;
 	let skipped = 0;
 	const problems: string[] = [];
+	const missing = new Map<Unread, string[]>();
 
 	for (const file of files) {
 		const source = relative(root, file);
 		try {
-			const { page, items } = readOdg(file);
+			const { page, items, pictures, files } = readOdg(file);
+			const unread = await readBarcodePictures(pictures, files);
 			const label = importLabel(source, page, items);
+			if (!label.barcode && unread) missing.set(unread, [...(missing.get(unread) ?? []), source]);
 			const design = parseDesign(label.design);
 			if (!design.ok) throw new Error(design.message);
 			// The same rules the editor applies, so imported labels can be saved as they are.
@@ -215,7 +264,9 @@ const main = async () => {
 			if (!details.ok) throw new Error(details.message);
 
 			if (!sql) {
-				console.log(`${label.customer.padEnd(10)} ${label.kind.padEnd(8)} ${label.name}  (${design.design.parts.length} parts)`);
+				console.log(
+					`${label.customer.padEnd(10)} ${label.kind.padEnd(8)} ${(label.barcode ?? "no barcode").padEnd(14)} ${label.name}  (${design.design.parts.length} parts)`,
+				);
 				continue;
 			}
 			const { name, customer, kind, sku, storage, barcode } = details.details;
@@ -242,6 +293,16 @@ const main = async () => {
 	if (sql) {
 		await sql.end();
 		console.log(`Added ${added}, re-imported ${replaced}, already there ${skipped}.`);
+	}
+	const withoutNumber = [...missing.values()].reduce((n, files) => n + files.length, 0);
+	console.log(
+		withoutNumber === 0
+			? "Every barcode picture was read."
+			: `\n${withoutNumber} labels have a barcode picture but no number yet:`,
+	);
+	for (const [reason, files] of missing) {
+		console.log(`  ${files.length}: ${reason}. For example:`);
+		for (const f of files.slice(0, 3)) console.log(`    ${f}`);
 	}
 	if (problems.length) {
 		console.log(`\n${problems.length} couldn't be read:`);

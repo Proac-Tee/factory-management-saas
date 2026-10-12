@@ -11,10 +11,29 @@ export const fieldClass =
 export const panelFieldClass = fieldClass.replace("bg-wash", "bg-stock");
 export const labelClass = "text-sm leading-[18px] font-medium text-graphite";
 
-export const primaryButton =
-	"inline-flex h-tap items-center justify-center gap-2 rounded-md bg-ink px-5 text-base font-bold text-stock disabled:bg-rule disabled:text-graphite";
-export const outlineButton =
-	"inline-flex h-12 items-center justify-center gap-2 rounded-md border border-ink bg-stock px-5 text-base font-bold disabled:border-rule disabled:text-graphite";
+const BUTTON_VARIANTS = {
+	primary: "bg-ink text-stock hover:bg-graphite disabled:bg-rule disabled:text-graphite",
+	outline: "border border-ink bg-stock hover:bg-wash disabled:border-rule disabled:text-graphite",
+} as const;
+
+/** Each size sets its height once; touch screens get the bigger target. */
+const BUTTON_SIZES = {
+	/** Inside a row of controls (move up/down). */
+	sm: "h-11 px-3.5 text-base pointer-coarse:h-12",
+	/** Page header actions, side by side. */
+	md: "h-12 px-5 text-base pointer-coarse:h-14",
+	/** The main action of a form. */
+	lg: "h-tap px-5 text-base",
+	/** The one action a screen exists for (print, sign in, next check). */
+	xl: "h-[60px] px-6 text-lg",
+} as const;
+
+/** Classes for a button or a link that looks like one. Add layout (width, flex) around it, not size. */
+export const button = ({
+	variant = "primary",
+	size = "lg",
+}: { variant?: keyof typeof BUTTON_VARIANTS; size?: keyof typeof BUTTON_SIZES } = {}) =>
+	`inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-bold whitespace-nowrap ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]}`;
 
 export function ErrorLine({ message, id }: { message: string; id?: string }) {
 	return (

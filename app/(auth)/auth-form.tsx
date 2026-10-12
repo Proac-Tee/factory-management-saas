@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Field } from "@/components/field";
 import { MailIcon } from "@/components/icons";
-import { ErrorLine, fieldClass, primaryButton, SavedLine } from "@/components/ui";
+import { button, ErrorLine, fieldClass, SavedLine } from "@/components/ui";
 import { type AuthState, login, requestReset, setNewPassword, signup } from "./actions";
 
 type Mode = "login" | "signup" | "forgot" | "reset";
@@ -12,20 +12,20 @@ type Mode = "login" | "signup" | "forgot" | "reset";
 const COPY: Record<Mode, { title: string; intro: string; button: string; busy: string }> = {
 	login: {
 		title: "Sign in",
-		intro: "Ember Factory OS. Use the work email your admin added to the allowed list.",
+		intro: "Use your work email.",
 		button: "Sign in",
 		busy: "Signing in…",
 	},
 	signup: {
 		title: "Create your password",
-		intro: "For first-time sign in. It only works if an admin has added your email to the allowed list.",
-		button: "Create account",
-		busy: "Creating your account…",
+		intro: "First time here? An admin adds your work email first, then you choose a password.",
+		button: "Create password",
+		busy: "Creating…",
 	},
 	forgot: {
 		title: "Reset your password",
 		intro: "We'll email you a link to set a new one.",
-		button: "Send the reset link",
+		button: "Send reset link",
 		busy: "Sending…",
 	},
 	reset: {
@@ -127,7 +127,7 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 			<div className="mt-auto flex flex-col gap-4 pt-6 md:mt-4">
 				{otherError && <ErrorLine message={otherError} />}
 				{state?.message && <SavedLine>{state.message}</SavedLine>}
-				<button type="submit" disabled={pending} className={`${primaryButton} h-[60px] w-full text-lg`}>
+				<button type="submit" disabled={pending} className={`${button({ size: "xl" })} w-full`}>
 					{pending ? copy.busy : copy.button}
 				</button>
 				<p className="border-t border-rule pt-4 text-sm leading-5 text-graphite">
@@ -137,7 +137,6 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 							<Link href="/signup" className="font-bold text-ink underline underline-offset-2">
 								Create your password
 							</Link>
-							. It only works if your email is on the allowed list.
 						</>
 					)}
 					{mode !== "login" && (
@@ -146,7 +145,6 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 							<Link href="/login" className="font-bold text-ink underline underline-offset-2">
 								Sign in
 							</Link>
-							.
 						</>
 					)}
 				</p>

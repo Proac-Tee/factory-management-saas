@@ -14,7 +14,7 @@ export function SearchBox({ query }: { query: LibraryQuery }) {
 					type="search"
 					name="q"
 					defaultValue={query.q}
-					placeholder="Find a label, product, SKU or barcode"
+					placeholder="Name, SKU or barcode"
 					className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-graphite"
 				/>
 			</label>

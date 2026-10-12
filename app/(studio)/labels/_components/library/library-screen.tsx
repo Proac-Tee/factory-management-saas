@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PlusIcon, ScanIcon } from "@/components/icons";
-import { ErrorLine, outlineButton, PageHeader, primaryButton } from "@/components/ui";
+import { FlashToast } from "@/components/toast";
+import { button, PageHeader } from "@/components/ui";
 import type { LibraryView } from "@/use-cases/labels";
 import { CustomerSection, FlatSection } from "./label-groups";
 import { LibraryControls } from "./library-controls";
@@ -20,12 +21,12 @@ export function LibraryScreen({ view }: { view: LibraryView }) {
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
 					<SearchBox query={query} />
 					<div className="flex gap-3">
-						<Link href="/scan" className={`${outlineButton} flex-1 pointer-coarse:h-14 sm:flex-none`}>
+						<Link href="/scan" className={`${button({ variant: "outline", size: "md" })} flex-1 sm:flex-none`}>
 							<ScanIcon size={18} />
 							Scan
 						</Link>
 						{canEdit && (
-							<Link href="/labels/new" className={`${primaryButton} h-12 flex-1 pointer-coarse:h-14 sm:flex-none`}>
+							<Link href="/labels/new" className={`${button({ size: "md" })} flex-1 sm:flex-none`}>
 								<PlusIcon size={18} strokeWidth={2.5} />
 								New label
 							</Link>
@@ -35,7 +36,9 @@ export function LibraryScreen({ view }: { view: LibraryView }) {
 			</PageHeader>
 
 			<div className="flex flex-col gap-6 px-4 pt-5 pb-12 md:px-10">
-				{query.denied && <ErrorLine message="Your role can't open that page. Ask an admin if you need it." />}
+				{query.denied && (
+					<FlashToast clearParam="denied" tone="problem" message="Your role can't open that page. Ask an admin if you need it." />
+				)}
 				<LibraryControls query={query} />
 
 				{total === 0 ? (

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { AlertTriangleIcon, CheckIcon, ChevronRightIcon, KeyboardIcon, PrinterIcon, ScanIcon } from "@/components/icons";
-import { ErrorLine, fieldClass, PageHeader, primaryButton } from "@/components/ui";
+import { button, ErrorLine, fieldClass, PageHeader } from "@/components/ui";
 import { BARCODE_KIND_NAMES, checkGtin } from "@/entities/gtin";
 import { time } from "@/lib/format";
 import type { CheckResult, FindResult } from "@/use-cases/labels";
@@ -118,7 +118,7 @@ export function ScanScreen({ mode, label }: { mode: Mode; label: CheckLabel | nu
 										onChange={(e) => setTyped(e.target.value)}
 										className={`${fieldClass} min-w-0 flex-1 tabular-nums`}
 									/>
-									<button type="submit" disabled={pending} className={primaryButton}>
+									<button type="submit" disabled={pending} className={button()}>
 										{mode === "find" ? "Find" : "Check"}
 									</button>
 								</div>
@@ -193,7 +193,7 @@ function FindResults({ result, onAgain }: { result: FindResult; onAgain: () => v
 
 function AgainButton({ onAgain }: { onAgain: () => void }) {
 	return (
-		<button type="button" onClick={onAgain} className={`${primaryButton} w-full`}>
+		<button type="button" onClick={onAgain} className={`${button()} w-full`}>
 			<ScanIcon size={20} />
 			Scan another
 		</button>
@@ -237,7 +237,7 @@ function CheckOutcome({ result, label, onNext }: { result: Extract<CheckResult, 
 					))}
 				</dl>
 				<div className="mt-auto flex flex-col gap-3">
-					<button type="button" onClick={onNext} className={`${primaryButton} h-[60px] w-full text-lg`}>
+					<button type="button" onClick={onNext} className={`${button({ size: "xl" })} w-full`}>
 						<ScanIcon size={22} />
 						Check next label
 					</button>

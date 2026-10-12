@@ -30,10 +30,12 @@ export function ScaledLabel({
 	className?: string;
 }) {
 	const [ref, box] = useElementSize();
-	const height = Math.min(Math.max(box.height, minHeightPx), maxHeightPx);
-	const scale = box.width > 0 ? Math.min(box.width / design.widthMm, height / design.heightMm, maxScale) : 0;
+	// Less the 1px border on each side, so the label never pushes its box wider.
+	const width = box.width - 2;
+	const height = Math.min(Math.max(box.height, minHeightPx), maxHeightPx) - 2;
+	const scale = width > 0 ? Math.min(width / design.widthMm, height / design.heightMm, maxScale) : 0;
 	return (
-		<div ref={ref} className={`flex w-full items-center justify-center ${className}`}>
+		<div ref={ref} className={`flex w-full min-w-0 items-center justify-center overflow-hidden ${className}`}>
 			{scale > 0 && (
 				<div className="border border-graphite">
 					<LabelRender design={design} barcode={barcode} values={values} scale={scale} selectedId={selectedId} />

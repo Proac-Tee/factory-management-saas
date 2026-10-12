@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PrinterIcon } from "@/components/icons";
-import { ErrorLine, outlineButton, PageHeader, primaryButton, SavedLine } from "@/components/ui";
+import { button, ErrorLine, PageHeader } from "@/components/ui";
 import { KIND_NAMES } from "@/entities/label";
 import type { EditorView } from "@/use-cases/labels";
 import { DetailsForm } from "./details-form";
@@ -23,7 +23,6 @@ const TABS: [Tab, string][] = [
 export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: boolean }) {
 	const { label, canEdit } = view;
 	const editor = useLabelEditor(view, justSaved);
-	const { result, dirty } = editor;
 
 	return (
 		<div className="flex flex-1 flex-col">
@@ -32,9 +31,14 @@ export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: 
 				title={label ? label.name : "New label"}
 				sticky
 			>
-				<div className="flex flex-wrap gap-3">
+				<div className="flex flex-wrap items-center gap-3 md:shrink-0 md:flex-nowrap">
+					{canEdit && editor.dirty && (
+						<span role="status" className="w-full text-sm leading-5 font-bold whitespace-nowrap text-graphite md:w-auto">
+							Unsaved changes
+						</span>
+					)}
 					{label && (
-						<Link href={`/labels/${label.id}/print`} className={`${outlineButton} flex-1 pointer-coarse:h-14 sm:flex-none`}>
+						<Link href={`/labels/${label.id}/print`} className={`${button({ variant: "outline", size: "md" })} flex-1 sm:flex-none`}>
 							<PrinterIcon size={18} />
 							{canEdit ? "Print test label" : "Print labels"}
 						</Link>
@@ -44,7 +48,7 @@ export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: 
 							type="button"
 							onClick={editor.save}
 							disabled={editor.saving}
-							className={`${primaryButton} h-12 flex-1 pointer-coarse:h-14 sm:flex-none`}
+							className={`${button({ size: "md" })} flex-1 sm:flex-none`}
 						>
 							{editor.saving ? "Saving…" : label ? "Save label" : "Create label"}
 						</button>
@@ -59,8 +63,6 @@ export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: 
 							You can print and scan this label. To change it, ask an editor or admin.
 						</p>
 					)}
-					{result.error && <ErrorLine message={result.error} />}
-					{result.saved && !dirty && <SavedLine>{justSaved && !label ? "Label created" : "Label saved"}</SavedLine>}
 					{label?.archived && <ErrorLine message="This label is archived, so it's hidden from the library." />}
 
 					<div role="tablist" aria-label="Edit" className="flex gap-1 rounded-md bg-wash p-1">
@@ -91,7 +93,6 @@ export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: 
 					design={editor.design}
 					barcode={editor.previewBarcode}
 					selectedId={editor.selectedId}
-					canEdit={canEdit}
 				/>
 			</div>
 		</div>

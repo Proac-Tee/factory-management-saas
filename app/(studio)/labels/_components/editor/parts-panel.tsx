@@ -2,7 +2,7 @@
 
 import { NumberBox, Segmented, Stepper } from "@/components/controls";
 import { ArrowDownIcon, ArrowUpIcon, EyeIcon, EyeOffIcon, PlusIcon, TrashIcon } from "@/components/icons";
-import { ErrorLine, labelClass, outlineButton, panelFieldClass, SavedLine } from "@/components/ui";
+import { button, ErrorLine, labelClass, panelFieldClass, SavedLine } from "@/components/ui";
 import { type Fit, FIELDS, type LabelPart, LIMITS, SIZE_PRESETS, type TextPart } from "@/entities/label";
 import { canAdd, matchingPreset } from "@/entities/label-edit";
 import type { LabelEditorState } from "./use-label-editor";
@@ -14,7 +14,7 @@ const partName = (part: LabelPart) =>
 export function PartsPanel({ editor, canEdit }: { editor: LabelEditorState; canEdit: boolean }) {
 	const { design, parts, selectedId, tooWide } = editor;
 	return (
-		<fieldset disabled={!canEdit} className="flex flex-col gap-5">
+		<fieldset disabled={!canEdit} className="flex min-w-0 flex-col gap-5">
 			<legend className="sr-only">Size and parts</legend>
 			<SizeControls editor={editor} />
 
@@ -49,7 +49,7 @@ export function PartsPanel({ editor, canEdit }: { editor: LabelEditorState; canE
 					)
 						.filter(([kind]) => canAdd(design, kind))
 						.map(([kind, name]) => (
-							<button key={kind} type="button" onClick={() => parts.add(kind)} className={outlineButton}>
+							<button key={kind} type="button" onClick={() => parts.add(kind)} className={button({ variant: "outline", size: "md" })}>
 								<PlusIcon size={18} />
 								{name}
 							</button>
@@ -57,6 +57,7 @@ export function PartsPanel({ editor, canEdit }: { editor: LabelEditorState; canE
 				</div>
 			)}
 
+			{editor.fieldError?.field === "design" && <ErrorLine message={editor.fieldError.message} />}
 			<FitMeter fit={editor.fit} heightMm={design.heightMm} tooWide={tooWide.size} />
 			<p className="text-sm leading-5 text-graphite">
 				Type {FIELDS.map((f) => `{${f.key}}`).join(", ")} in a line to fill it in when printing, like BATCH: {"{batch}"}.
@@ -72,7 +73,7 @@ function SizeControls({ editor }: { editor: LabelEditorState }) {
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<span className="text-base leading-5 font-bold">Label size</span>
-				<div className="flex gap-1.5" role="group" aria-label="Common sizes">
+				<div className="flex flex-wrap gap-1.5" role="group" aria-label="Common sizes">
 					{SIZE_PRESETS.map((p) => (
 						<button
 							key={`${p.widthMm}x${p.heightMm}`}
@@ -172,11 +173,11 @@ function PartRow({
 						</div>
 					)}
 					<div className="flex flex-wrap gap-2">
-						<button type="button" disabled={first} onClick={() => onMove(-1)} className={`${outlineButton} h-11 px-3.5`}>
+						<button type="button" disabled={first} onClick={() => onMove(-1)} className={button({ variant: "outline", size: "sm" })}>
 							<ArrowUpIcon size={18} />
 							Move up
 						</button>
-						<button type="button" disabled={last} onClick={() => onMove(1)} className={`${outlineButton} h-11 px-3.5`}>
+						<button type="button" disabled={last} onClick={() => onMove(1)} className={button({ variant: "outline", size: "sm" })}>
 							<ArrowDownIcon size={18} />
 							Move down
 						</button>

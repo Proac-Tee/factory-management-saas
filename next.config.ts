@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
     return [{ source: "/", destination: "/labels", permanent: false }];
   },
   cacheComponents: true,
+  experimental: {
+    // Label pictures are uploaded one at a time, up to 5 MB each.
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   partialPrefetching: true,
   turbopack: {
     rules: {

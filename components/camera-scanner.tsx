@@ -1,16 +1,8 @@
 "use client";
 
-import { BarcodeDetector, prepareZXingModule } from "barcode-detector/ponyfill";
 import { useEffect, useRef, useState } from "react";
+import { BarcodeDetector } from "@/lib/barcode-detector";
 import { Spinner } from "./spinner";
-
-// Serve the decoder from this app, not a CDN, so scanning works on the
-// factory network without reaching a third party (public/vendor/).
-prepareZXingModule({
-	overrides: {
-		locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? "/vendor/zxing_reader.wasm" : prefix + path),
-	},
-});
 
 type Status = "starting" | "scanning" | "blocked" | "unavailable";
 

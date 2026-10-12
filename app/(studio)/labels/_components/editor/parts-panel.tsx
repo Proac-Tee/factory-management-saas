@@ -3,20 +3,20 @@
 import { NumberBox, Segmented, Stepper } from "@/components/controls";
 import { ArrowDownIcon, ArrowUpIcon, EyeIcon, EyeOffIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { button, ErrorLine, labelClass, panelFieldClass, SavedLine } from "@/components/ui";
-import { type Fit, FIELDS, type LabelPart, LIMITS, SIZE_PRESETS, type TextPart } from "@/entities/label";
+import { type Fit, FIELDS, type LabelPart, LIMITS, SIZE_PRESETS, type StackDesign, type TextPart } from "@/entities/label";
 import { canAdd, matchingPreset } from "@/entities/label-edit";
 import type { LabelEditorState } from "./use-label-editor";
 
 const partName = (part: LabelPart) =>
 	part.kind === "logo" ? "Logo" : part.kind === "barcode" ? "Barcode" : part.text.trim() || "Empty line";
 
-/** The label's size, its parts top to bottom, and whether they fit. */
-export function PartsPanel({ editor, canEdit }: { editor: LabelEditorState; canEdit: boolean }) {
-	const { design, parts, selectedId, tooWide } = editor;
+/** A stacked label's size, its parts top to bottom, and whether they fit. */
+export function PartsPanel({ editor, design, canEdit }: { editor: LabelEditorState; design: StackDesign; canEdit: boolean }) {
+	const { parts, selectedId, tooWide } = editor;
 	return (
 		<fieldset disabled={!canEdit} className="flex min-w-0 flex-col gap-5">
 			<legend className="sr-only">Size and parts</legend>
-			<SizeControls editor={editor} />
+			<SizeControls editor={editor} design={design} />
 
 			<div className="flex flex-col border-t border-ink">
 				{design.parts.length === 0 && (
@@ -58,7 +58,7 @@ export function PartsPanel({ editor, canEdit }: { editor: LabelEditorState; canE
 			)}
 
 			{editor.fieldError?.field === "design" && <ErrorLine message={editor.fieldError.message} />}
-			<FitMeter fit={editor.fit} heightMm={design.heightMm} tooWide={tooWide.size} />
+			{editor.fit && <FitMeter fit={editor.fit} heightMm={design.heightMm} tooWide={tooWide.size} />}
 			<p className="text-sm leading-5 text-graphite">
 				Type {FIELDS.map((f) => `{${f.key}}`).join(", ")} in a line to fill it in when printing, like BATCH: {"{batch}"}.
 			</p>
@@ -66,8 +66,8 @@ export function PartsPanel({ editor, canEdit }: { editor: LabelEditorState; canE
 	);
 }
 
-function SizeControls({ editor }: { editor: LabelEditorState }) {
-	const { design, size } = editor;
+function SizeControls({ editor, design }: { editor: LabelEditorState; design: StackDesign }) {
+	const { size } = editor;
 	const preset = matchingPreset(design, SIZE_PRESETS);
 	return (
 		<div className="flex flex-col gap-3">

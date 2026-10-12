@@ -44,7 +44,8 @@ describe("libraryQuerySchema", () => {
 	it("falls back for anything it doesn't know", () => {
 		expect(libraryQuerySchema.parse({ group: "colour", kind: ["srp", "pallet"], q: "  tesco " })).toEqual({
 			q: "tesco",
-			group: "customer",
+			group: "folder",
+			folder: undefined,
 			kind: undefined,
 			denied: undefined,
 		});
@@ -56,6 +57,13 @@ describe("libraryHref", () => {
 	const query = libraryQuerySchema.parse({ q: "tesco", group: "kind" });
 	it("keeps the current search and leaves defaults out", () => {
 		expect(libraryHref(query, { kind: "srp" })).toBe("/labels?q=tesco&group=kind&kind=srp");
-		expect(libraryHref(query, { group: "customer", q: "" })).toBe("/labels");
+		expect(libraryHref(query, { group: "folder", q: "" })).toBe("/labels");
+	});
+
+	it("keeps the open folder only in the folder view", () => {
+		const id = "6f1c1d1e-7a43-4b6a-9d8e-0a1b2c3d4e5f";
+		const inFolder = libraryQuerySchema.parse({ folder: id });
+		expect(libraryHref(inFolder, {})).toBe(`/labels?folder=${id}`);
+		expect(libraryHref(inFolder, { group: "kind" })).toBe("/labels?group=kind");
 	});
 });

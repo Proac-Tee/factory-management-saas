@@ -1,8 +1,9 @@
 import "server-only";
 import type { JwtPayload } from "@supabase/supabase-js";
-import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { LabelDesign, LabelDetails, LabelKind } from "@/entities/label";
+import { ensureFolderPath } from "@/data-access/folders";
 import { withRls } from "@/lib/db/rls";
 import { labelChecks, labels, products, profiles } from "@/lib/db/schema";
 
@@ -19,6 +20,7 @@ export type LabelSummary = {
 	storage: "ambient" | "chilled" | null;
 	barcode: string | null;
 	design: LabelDesign;
+	folderId: string | null;
 	updatedAt: string;
 };
 
@@ -32,6 +34,7 @@ const summary = {
 	storage: labels.storage,
 	barcode: labels.barcode,
 	design: labels.design,
+	folderId: labels.folderId,
 	updatedAt: labels.updatedAt,
 };
 
@@ -146,6 +149,54 @@ export const saveLabel = (
 			.where(eq(labels.id, id))
 			.returning({ id: labels.id });
 		return row?.id ?? null;
+	});
+
+/** Which of these LibreOffice files are in the library already. */
+export const existingSources = (claims: JwtPayload, sourceFiles: string[]) =>
+	withRls(claims, async (tx) => {
+		if (sourceFiles.length === 0) return [];
+		const rows = await tx.select({ sourceFile: labels.sourceFile }).from(labels).where(inArray(labels.sourceFile, sourceFiles));
+		return rows.flatMap((r) => (r.sourceFile ? [r.sourceFile] : []));
+	});
+
+export type ImportOutcome = "added" | "replaced" | "skipped";
+
+/**
+ * Saves a label read from a LibreOffice file, in its folders (made where
+ * missing) under `parentId`. A file already in the library is skipped, or
+ * replaced (design, details and folder) when `replace` is set. A new SKU adds
+ * its product; an existing product keeps the name editors gave it.
+ */
+export const saveImportedLabel = (
+	claims: JwtPayload,
+	{
+		parentId,
+		folderPath,
+		sourceFile,
+		details: { productName, ...details },
+		design,
+		replace,
+	}: { parentId: string | null; folderPath: string[]; sourceFile: string; details: LabelDetails; design: LabelDesign; replace: boolean },
+) =>
+	withRls(claims, async (tx): Promise<ImportOutcome> => {
+		const [existing] = await tx.select({ id: labels.id }).from(labels).where(eq(labels.sourceFile, sourceFile));
+		if (existing && !replace) return "skipped";
+		const folderId = await ensureFolderPath(tx, claims.sub, parentId, folderPath);
+		if (details.sku && productName) {
+			await tx
+				.insert(products)
+				.values({ sku: details.sku, name: productName, createdBy: claims.sub, updatedBy: claims.sub })
+				.onConflictDoNothing();
+		}
+		if (existing) {
+			await tx
+				.update(labels)
+				.set({ ...details, design, folderId, archivedAt: null, updatedBy: claims.sub, updatedAt: sql`now()` })
+				.where(eq(labels.id, existing.id));
+			return "replaced";
+		}
+		await tx.insert(labels).values({ ...details, design, folderId, sourceFile, createdBy: claims.sub, updatedBy: claims.sub });
+		return "added";
 	});
 
 /** Takes a label out of the library, or puts it back. */

@@ -1,17 +1,19 @@
-// How the label library is arranged. The default is the way labels are
-// used on the floor: for each customer, each product with its SRP, shipper
-// and pallet labels side by side. Type and size give flat views instead.
+// How the label library is arranged. The default is the folders, as on the
+// Label Designs drive. Customer puts each product's SRP, shipper and pallet
+// labels side by side; type and size give flat views.
 
 import { z } from "zod";
 import { KIND_NAMES, LABEL_KINDS, type LabelKind } from "./label";
 
-export const GROUPINGS = { customer: "Customer", kind: "Type", size: "Size" } as const;
+export const GROUPINGS = { folder: "Folders", customer: "Customer", kind: "Type", size: "Size" } as const;
 export type Grouping = keyof typeof GROUPINGS;
 
 /** The library's search, grouping and filter, read from the URL. Bad values fall back. */
 export const libraryQuerySchema = z.object({
 	q: z.string().trim().max(80).catch(""),
-	group: z.enum(["customer", "kind", "size"]).catch("customer"),
+	group: z.enum(["folder", "customer", "kind", "size"]).catch("folder"),
+	/** The folder open in the folder view; none is the top level. */
+	folder: z.uuid().optional().catch(undefined),
 	kind: z.enum(LABEL_KINDS).optional().catch(undefined),
 	denied: z.string().optional().catch(undefined),
 });
@@ -83,11 +85,12 @@ export const groupFlat = <T extends Placeable>(labels: T[], by: "kind" | "size")
 };
 
 /** The library's URL with some of its query changed; defaults are left out. */
-export const libraryHref = (query: LibraryQuery, change: Partial<Pick<LibraryQuery, "q" | "group" | "kind">>): string => {
-	const next = { q: query.q, group: query.group, kind: query.kind, ...change };
+export const libraryHref = (query: LibraryQuery, change: Partial<Pick<LibraryQuery, "q" | "group" | "kind" | "folder">>): string => {
+	const next = { q: query.q, group: query.group, kind: query.kind, folder: query.folder, ...change };
 	const params = new URLSearchParams();
 	if (next.q) params.set("q", next.q);
-	if (next.group !== "customer") params.set("group", next.group);
+	if (next.group !== "folder") params.set("group", next.group);
+	if (next.group === "folder" && next.folder) params.set("folder", next.folder);
 	if (next.kind) params.set("kind", next.kind);
 	const search = params.toString();
 	return search ? `/labels?${search}` : "/labels";

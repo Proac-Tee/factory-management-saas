@@ -13,6 +13,8 @@ import {
 	saveLabel as saveLabelRow,
 	setLabelArchived,
 } from "@/data-access/labels";
+import { listFolders } from "@/data-access/folders";
+import { buildTree, type FolderNode, folderOptions, type FolderRow, pathTo } from "@/entities/folders";
 import { BARCODE_KIND_NAMES, checkGtin } from "@/entities/gtin";
 import {
 	checkDetails,
@@ -45,7 +47,21 @@ export type { LabelFull, LabelSummary, ProductOption };
 
 // ─── Reading ─────────────────────────────────────────────────────────────────
 
+export type FolderView = {
+	group: "folder";
+	tree: FolderNode[];
+	/** The open folder's path from the top; empty at the top level. */
+	path: { id: string; name: string }[];
+	/** Folders inside the open one. */
+	folders: FolderNode[];
+	/** Labels directly in the open folder (at the top level: labels in no folder). */
+	labels: LabelSummary[];
+	/** When searching: every match, grouped by the folder it's in. */
+	results: FlatGroup<LabelSummary>[] | null;
+};
+
 export type Library =
+	| FolderView
 	| { group: "customer"; customers: CustomerGroup<LabelSummary>[] }
 	| { group: "kind" | "size"; groups: FlatGroup<LabelSummary>[] };
 
@@ -61,16 +77,50 @@ export type LibraryView = {
 export const getLibrary = async (searchParams: unknown): Promise<LibraryView> => {
 	const member = await getMember();
 	const query = libraryQuerySchema.parse(searchParams);
-	const labels = await listLabels(member.claims, { query: query.q, kind: query.kind });
+	const [labels, folderRows] = await Promise.all([
+		listLabels(member.claims, { query: query.q, kind: query.kind }),
+		query.group === "folder" ? listFolders(member.claims) : [],
+	]);
 	return {
 		query,
 		library:
-			query.group === "customer"
-				? { group: "customer", customers: groupByCustomer(labels) }
-				: { group: query.group, groups: groupFlat(labels, query.group) },
+			query.group === "folder"
+				? folderView(labels, folderRows, query)
+				: query.group === "customer"
+					? { group: "customer", customers: groupByCustomer(labels) }
+					: { group: query.group, groups: groupFlat(labels, query.group) },
 		total: labels.length,
 		customerCount: new Set(labels.map((l) => l.customer)).size,
 		canEdit: can(member.role, "edit-labels"),
+	};
+};
+
+const NO_FOLDER = "Not in a folder";
+
+const folderView = (labels: LabelSummary[], rows: FolderRow[], query: LibraryQuery): FolderView => {
+	const tree = buildTree(rows);
+	const path = pathTo(rows, query.folder ?? null);
+	const openId = path.at(-1)?.id ?? null;
+	const find = (nodes: FolderNode[]): FolderNode | undefined =>
+		nodes.reduce<FolderNode | undefined>((found, n) => found ?? (n.id === openId ? n : find(n.children)), undefined);
+	const searching = query.q !== "" || query.kind !== undefined;
+	let results: FlatGroup<LabelSummary>[] | null = null;
+	if (searching) {
+		// Every match, under its folder's full path, folders in tree order.
+		const nameOf = (id: string | null) => (id ? pathTo(rows, id).map((f) => f.name).join(" / ") || NO_FOLDER : NO_FOLDER);
+		const groups = new Map<string, LabelSummary[]>();
+		for (const label of labels) groups.set(nameOf(label.folderId), [...(groups.get(nameOf(label.folderId)) ?? []), label]);
+		results = [...groups.entries()]
+			.sort(([a], [b]) => Number(a === NO_FOLDER) - Number(b === NO_FOLDER) || a.localeCompare(b, "en-GB", { numeric: true }))
+			.map(([name, items]) => ({ name, labels: items.toSorted((a, b) => a.name.localeCompare(b.name, "en-GB", { numeric: true })) }));
+	}
+	return {
+		group: "folder",
+		tree,
+		path,
+		folders: openId ? (find(tree)?.children ?? []) : tree,
+		labels: searching ? [] : labels.filter((l) => l.folderId === openId),
+		results,
 	};
 };
 
@@ -79,6 +129,8 @@ export type EditorView = {
 	design: LabelDesign;
 	customers: string[];
 	products: ProductOption[];
+	/** Every folder by its path, for moving the label. */
+	folders: { id: string; label: string }[];
 	canEdit: boolean;
 };
 
@@ -87,20 +139,22 @@ export const getLabelEditor = async (rawId: unknown): Promise<EditorView | null>
 	const member = await requireMember("use-labels");
 	const id = idSchema.safeParse(rawId);
 	if (!id.success) return null;
-	const [label, customers, products] = await Promise.all([
+	const [label, customers, products, folderRows] = await Promise.all([
 		getLabel(member.claims, id.data),
 		listCustomers(member.claims),
 		listProducts(member.claims),
+		listFolders(member.claims),
 	]);
 	if (!label) return null;
-	return { label, design: readDesign(label), customers, products, canEdit: can(member.role, "edit-labels") };
+	const folders = folderOptions(buildTree(folderRows)).map(({ id, label }) => ({ id, label }));
+	return { label, design: readDesign(label), customers, products, folders, canEdit: can(member.role, "edit-labels") };
 };
 
 /** A blank editor for a new label (editors and admins only). */
 export const getNewLabelEditor = async (): Promise<EditorView> => {
 	const member = await requireMember("edit-labels");
 	const [customers, products] = await Promise.all([listCustomers(member.claims), listProducts(member.claims)]);
-	return { label: null, design: newDesign(), customers, products, canEdit: true };
+	return { label: null, design: newDesign(), customers, products, folders: [], canEdit: true };
 };
 
 export type PrintView = { label: LabelFull; design: LabelDesign; fields: FieldKey[] };

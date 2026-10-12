@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
 	check,
+	customType,
+	type AnyPgColumn,
 	index,
 	jsonb,
 	pgEnum,
@@ -8,6 +10,7 @@ import {
 	pgTable,
 	text,
 	timestamp,
+	uniqueIndex,
 	uuid,
 } from "drizzle-orm/pg-core";
 import { authenticatedRole, authUid, authUsers } from "drizzle-orm/supabase";
@@ -105,6 +108,79 @@ export const allowedEmails = pgTable(
 	],
 ).enableRLS();
 
+// ─── Folders ─────────────────────────────────────────────────────────────────
+
+/**
+ * The label library's folders, as on the Label Designs drive (LENHAMS →
+ * BILTONG LABELS → SRP LABELS…). A folder only goes once it's empty.
+ */
+export const folders = pgTable(
+	"folders",
+	{
+		id: uuid().primaryKey().defaultRandom(),
+		name: text().notNull(),
+		parentId: uuid("parent_id").references((): AnyPgColumn => folders.id, { onDelete: "restrict" }),
+		createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		check("folders_name_not_blank", sql`btrim(${t.name}) <> ''`),
+		check("folders_name_length", sql`char_length(${t.name}) <= 80`),
+		check("folders_not_own_parent", sql`${t.parentId} is null or ${t.parentId} <> ${t.id}`),
+		// One name per folder, whatever the capitals; top-level folders too.
+		uniqueIndex("folders_name_in_parent").on(sql`coalesce(${t.parentId}, '00000000-0000-0000-0000-000000000000'::uuid)`, sql`lower(${t.name})`),
+		pgPolicy("folders_select", { for: "select", to: authenticatedRole, using: anyRole }),
+		pgPolicy("folders_insert", {
+			for: "insert",
+			to: authenticatedRole,
+			withCheck: sql`${hasRole("admin", "editor")} and ${t.createdBy} = ${authUid}`,
+		}),
+		pgPolicy("folders_update", { for: "update", to: authenticatedRole, using: hasRole("admin", "editor"), withCheck: hasRole("admin", "editor") }),
+		pgPolicy("folders_delete", { for: "delete", to: authenticatedRole, using: hasRole("admin", "editor") }),
+	],
+).enableRLS();
+
+export type FolderRow = typeof folders.$inferSelect;
+
+// ─── Pictures on labels ──────────────────────────────────────────────────────
+
+const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
+	dataType: () => "bytea",
+	toDriver: (value) => Buffer.from(value),
+	fromDriver: (value) => new Uint8Array(value),
+});
+
+export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Pictures used on imported labels (logos, barcode pictures, icons), stored
+ * once each by their SHA-256, so the same logo on 100 labels is one row.
+ * Written once, never changed. No SVG: it could carry script.
+ */
+export const labelImages = pgTable(
+	"label_images",
+	{
+		hash: text().primaryKey(),
+		contentType: text("content_type").notNull(),
+		bytes: bytea().notNull(),
+		createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(t) => [
+		check("label_images_hash_format", sql`${t.hash} ~ '^[0-9a-f]{64}$'`),
+		check("label_images_type", sql`${t.contentType} in ('image/png', 'image/jpeg', 'image/gif', 'image/webp')`),
+		check("label_images_size", sql`octet_length(${t.bytes}) between 1 and ${sql.raw(String(MAX_IMAGE_BYTES))}`),
+		check("label_images_hash_matches", sql`${t.hash} = encode(sha256(${t.bytes}), 'hex')`),
+		pgPolicy("label_images_select", { for: "select", to: authenticatedRole, using: anyRole }),
+		pgPolicy("label_images_insert", {
+			for: "insert",
+			to: authenticatedRole,
+			withCheck: sql`${hasRole("admin", "editor")} and ${t.createdBy} = ${authUid}`,
+		}),
+	],
+).enableRLS();
+
 // ─── Products ────────────────────────────────────────────────────────────────
 
 const SKU_CHECK = "'^[A-Z0-9-]{3,20}$'";
@@ -174,6 +250,8 @@ export const labels = pgTable(
 		/** GTIN-13 (pouch, EAN-13) or GTIN-14 (case, ITF-14) */
 		barcode: text(),
 		design: jsonb().$type<LabelDesign>().notNull(),
+		/** The folder it sits in, as on the Label Designs drive. */
+		folderId: uuid("folder_id").references(() => folders.id, { onDelete: "restrict" }),
 		/** The LibreOffice file it was imported from, so imports can be rerun. */
 		sourceFile: text("source_file").unique(),
 		createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
@@ -194,6 +272,7 @@ export const labels = pgTable(
 		index("labels_barcode_idx").on(t.barcode),
 		index("labels_customer_idx").on(t.customer),
 		index("labels_sku_idx").on(t.sku),
+		index("labels_folder_idx").on(t.folderId),
 		pgPolicy("labels_select", {
 			for: "select",
 			to: authenticatedRole,

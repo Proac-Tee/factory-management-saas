@@ -30,8 +30,9 @@ The same rules are enforced twice: in the app (`entities/roles.ts`,
 3. `pnpm db:migrate`
 4. Add the first admin: `pnpm access:allow --email you@example.com --role admin`,
    then open the app and choose **Create your password**.
-5. Import the LibreOffice labels (safe to rerun; `--replace` re-imports):
-   `pnpm labels:import "/path/to/Label Designs"`
+5. Upload the LibreOffice labels: sign in as an editor or admin, open
+   **Labels → Upload** and drag in a customer folder (AMAZON, CULINA,
+   LENHAMS…). Its folders are kept; existing labels can be skipped or replaced.
 6. In Supabase Auth → URL Configuration, add `<your site>/auth/confirm` to the
    redirect URLs (password reset and email confirmation links land there).
 7. In production, set `SITE_URL` to the app's address. Email links are built
@@ -59,8 +60,7 @@ http://127.0.0.1:55324.
 | `pnpm db:generate`         | A migration from `lib/db/schema.ts`                  |
 | `pnpm db:migrate`          | Apply migrations                                     |
 | `pnpm access:allow`        | Put an email on the allowed list with a role         |
-| `pnpm labels:import <dir>` | Import `.odg` labels (`--dry-run` to preview)        |
-| `pnpm labels:reset`        | Delete all labels and products (`--yes` to confirm)  |
+| `pnpm labels:reset`        | Delete all labels, products, folders and pictures (`--yes` to confirm) |
 
 ## Where things are
 
@@ -68,7 +68,7 @@ Each layer only calls the one below it:
 
 - `entities/` — the rules, no framework: label layout and fit, design edits,
   library grouping, GTIN checks, ITF-14/EAN-13 bar patterns, roles, account
-  forms, the `.odg` import rules. Input is checked with **Zod** schemas that
+  forms, the `.odg` reader and import rules, folders. Input is checked with **Zod** schemas that
   live here next to the rule they enforce (`designSchema`,
   `labelDetailsSchema`, `emailSchema`, …). All tested.
 - `data-access/` — Drizzle queries. User-facing ones run through `withRls`
@@ -86,14 +86,33 @@ Each layer only calls the one below it:
   what prints), `scaled-label.tsx`, form `controls.tsx`, `ui.tsx`.
 - `lib/` — sign-in (`auth.ts`), database client, env checks, date formats.
 
-## How the library is grouped
+## How the library is arranged
 
-Customer → product → type. Labels for the same product share its SKU, so
-an SRP, shipper and pallet label sit side by side under one product name
-(the `products` table). Labels with no SKU (hold, waste, address…) go under
-the customer's **General** group. Editors set the customer, SKU, product
-name and type on the label's **Details and group** tab; renaming a product
-there renames it on all its labels. **Type** and **Size** give flat views.
+**Folders** by default, as on the Label Designs drive (AMAZON → AMAZON EU →
+SRP LABELS…): a tree beside the library, the open folder's folders and
+labels in the middle (`?folder=<id>`). Editors make, rename, move and delete
+(empty) folders there, and move a label on its **Details and group** tab.
+The database keeps names unique within a folder and stops a folder going
+inside itself (`folders` table, `drizzle/0007_*.sql`).
+
+**Customer** groups customer → product → type: labels for the same product
+share its SKU, so an SRP, shipper and pallet label sit side by side under one
+product name (the `products` table); labels with no SKU go under **General**.
+**Type** and **Size** give flat views. Search covers every folder.
+
+## Uploading LibreOffice labels
+
+**Labels → Upload** (editors and admins). Drag in a folder, or choose one.
+The browser reads each `.odg` itself (`lib/label-files.ts` →
+`entities/odg.ts` → `entities/label-import.ts`) and shows every label as it
+will look before anything is sent. Each label keeps its layout: every text
+box, picture, shape and barcode where it was drawn (a "placed" design,
+`entities/placed.ts`), text still editable and batch/BBE/quantity turned into
+fields. Barcode numbers come from the barcode picture (ZXing), bars drawn as
+shapes (ITF-14, EAN-13, Code 128) or the printed digits. Pictures are stored
+once by SHA-256 (`label_images`) and served from `/label-images/<hash>`.
+A label is matched on its path in the library, so uploading again can skip
+or replace. Lock files, shortcuts, archives and other files are left out.
 
 ## Security
 

@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { checkFit } from "./label";
+import { parseDesign } from "./label";
 import {
 	customerFor,
+	fileToSkip,
 	importLabel,
 	kindFor,
 	nameFor,
-	type OdgItem,
 	gtinFromScan,
 	productNameFor,
 	skuFor,
 	storageFor,
 	withFields,
 } from "./label-import";
+import type { OdgDocument, OdgItem } from "./odg";
 
 describe("grouping from the folder", () => {
 	it("finds the customer, with Tesco and Alliance by file name", () => {
@@ -59,41 +60,57 @@ describe("details from the text", () => {
 });
 
 describe("importLabel", () => {
-	// The Lenhams 10145 SRP label, as laid out in LibreOffice.
-	const items: OdgItem[] = [
-		{ kind: "image", xMm: 36, yMm: 1, widthMm: 27.5, heightMm: 25 },
-		{ kind: "text", xMm: 15, yMm: 20, widthMm: 70, lines: [{ text: "ORIGINAL BILTONG", sizePt: 22 }] },
-		{ kind: "text", xMm: 35, yMm: 47.5, widthMm: 32, lines: [{ text: " AMBIENT", sizePt: 20 }] },
-		{ kind: "text", xMm: 25, yMm: 30, widthMm: 52, lines: [{ text: "PACK SIZE: 15 x 45g", sizePt: 16 }] },
-		{ kind: "text", xMm: 10, yMm: 55.5, widthMm: 47, lines: [{ text: "BATCH: AN1210601", sizePt: 14 }] },
-		{ kind: "text", xMm: 57.5, yMm: 55.5, widthMm: 35, lines: [{ text: "BBE: 12.10.27", sizePt: 14 }] },
-		{ kind: "text", xMm: 25, yMm: 37.5, widthMm: 53, lines: [{ text: "SKU: 10145", sizePt: 20 }] },
-		{ kind: "image", xMm: 10, yMm: 62.5, widthMm: 77.5, heightMm: 35.5 },
-	];
+	const page = { widthMm: 99.8, heightMm: 99.8 };
+	const text = (t: string, y: number, extra: Partial<OdgItem> = {}): OdgItem => ({
+		kind: "text",
+		xMm: 10,
+		yMm: y,
+		wMm: 60,
+		hMm: 7,
+		rotateDeg: 0,
+		hAlign: "left",
+		vAlign: "top",
+		wrap: false,
+		paddingMm: [0, 0, 0, 0],
+		paragraphs: [{ align: "left", sizePt: 16, runs: [{ text: t, sizePt: 16, weight: 700, italic: false, font: "cambria", color: "#000000" }] }],
+		...extra,
+	}) as OdgItem;
+	const doc = (items: OdgItem[], warnings: string[] = []): OdgDocument => ({ page, items, pictures: {}, warnings });
+	const picture = (href: string): OdgItem => ({ kind: "image", xMm: 10, yMm: 60, wMm: 80, hMm: 25, rotateDeg: 0, href, mime: "", cropMm: [0, 0, 0, 0] });
 
-	it("stacks the parts top to bottom, joining boxes on one line", () => {
-		const label = importLabel("LENHAMS/SRP LABELS/ORIGINAL BILTONG 45g SRP LABEL 10145.odg", { widthMm: 99.8, heightMm: 99.8 }, items);
-		expect(label).toMatchObject({ name: "Original Biltong 45g SRP 10145", customer: "Lenhams", kind: "srp", sku: "10145", storage: "ambient" });
-		expect(label.design.parts.map((p) => (p.kind === "text" ? p.text : p.kind))).toEqual([
-			"logo",
-			"ORIGINAL BILTONG",
-			"PACK SIZE: 15 x 45g",
-			"SKU: 10145",
-			"AMBIENT",
-			"BATCH: {batch}   BBE: {bbe}",
-			"barcode",
-		]);
-		expect(checkFit(label.design).fits).toBe(true);
+	it("keeps every part where it was drawn, in the file's folders", () => {
+		const label = importLabel(
+			"LENHAMS/BILTONG LABELS/SRP LABELS/ORIGINAL BILTONG 45g SRP LABEL 10145.odg",
+			doc([text("SKU: 10145", 40), text("BATCH: AN0610601", 57), text("AMBIENT", 48)]),
+			{},
+		);
+		expect(label).toMatchObject({
+			folderPath: ["LENHAMS", "BILTONG LABELS", "SRP LABELS"],
+			customer: "Lenhams",
+			kind: "srp",
+			sku: "10145",
+			storage: "ambient",
+			design: { layout: "placed", widthMm: 99.8 },
+		});
+		expect(label.design.parts.map((p) => [p.id, p.yMm])).toEqual([["p1", 40], ["p2", 57], ["p3", 48]]);
+		expect(label.design.parts[1]).toMatchObject({ paragraphs: [{ runs: [{ text: "BATCH: {batch}" }] }] });
+		expect(parseDesign(label.design).ok).toBe(true);
 	});
 
-	it("takes a barcode number printed as text into the barcode", () => {
-		const label = importLabel("CULINA/BARCODES/WILD VENISON 15x37g  10097  BARCODE.odg", { widthMm: 50, heightMm: 25 }, [
-			{ kind: "image", xMm: 5, yMm: 3, widthMm: 40, heightMm: 12 },
-			{ kind: "text", xMm: 8, yMm: 16, widthMm: 34, lines: [{ text: "15060534670737", sizePt: 9 }] },
-		]);
-		expect(label.barcode).toBe("15060534670737");
-		expect(label.design.parts).toHaveLength(1);
-		expect(label.design.parts[0]).toMatchObject({ kind: "barcode", numberSizePt: 9 });
+	it("takes the barcode from a picture, then drawn bars, then printed digits", () => {
+		const scanned = { "Pictures/bars.png": { hash: "a".repeat(64), scanned: "15060534671000" } };
+		expect(importLabel("X.odg", doc([picture("Pictures/bars.png"), text("5060534671003", 90)]), scanned).barcode).toBe("15060534671000");
+		expect(importLabel("X.odg", doc([text("5060534671003", 90)]), {}).barcode).toBe("5060534671003");
+		expect(importLabel("X.odg", doc([text("15060534671012", 90)]), {}).barcode).toBeNull();
+	});
+
+	it("keeps the pictures it can show and says which it can't", () => {
+		const label = importLabel("X.odg", doc([picture("Pictures/logo.jpg"), picture("Pictures/fnsku.pdf")]), {
+			"Pictures/logo.jpg": { hash: "b".repeat(64), scanned: null },
+			"Pictures/fnsku.pdf": { hash: "c".repeat(64), scanned: null },
+		});
+		expect(label.design.parts.map((p) => p.kind === "image" && p.image)).toEqual(["b".repeat(64), null]);
+		expect(label.warnings).toEqual(["A picture (PDF) can't be shown, so it's left blank."]);
 	});
 });
 
@@ -102,23 +119,6 @@ describe("productNameFor", () => {
 		expect(productNameFor("Original Biltong 45g SRP 10145", "10145")).toBe("Original Biltong 45g");
 		expect(productNameFor("Chilli Biltong 15x45g Shipper Label - 10146", "10146")).toBe("Chilli Biltong 15x45g");
 		expect(productNameFor("PALLET LABELS 10097", "10097")).toBe("Product 10097");
-	});
-});
-
-describe("barcode pictures", () => {
-	const page = { widthMm: 100, heightMm: 100 };
-	const picture = (decoded: string | null) =>
-		({ kind: "image", xMm: 10, yMm: 60, widthMm: 80, heightMm: 25, decoded }) satisfies OdgItem;
-
-	it("takes the number read from the barcode picture", () => {
-		expect(importLabel("EMBER/ORIGINAL SRP 10145.odg", page, [picture("15060534671000")]).barcode).toBe("15060534671000");
-	});
-
-	it("prefers the picture over a number typed beside it, and ignores misreads", () => {
-		const typed = { kind: "text", xMm: 10, yMm: 90, widthMm: 80, lines: [{ text: "5060534671003", sizePt: 9 }] } satisfies OdgItem;
-		expect(importLabel("X.odg", page, [picture("15060534671000"), typed]).barcode).toBe("15060534671000");
-		expect(importLabel("X.odg", page, [picture("15060534671012"), typed]).barcode).toBe("5060534671003");
-		expect(importLabel("X.odg", page, [picture(null)]).barcode).toBeNull();
 	});
 });
 
@@ -135,5 +135,23 @@ describe("gtinFromScan", () => {
 		expect(gtinFromScan("X001ABCDEF")).toBeNull(); // Amazon FNSKU
 		expect(gtinFromScan("(00)350605346710000017")).toBeNull(); // pallet SSCC
 		expect(gtinFromScan("15060534671012")).toBeNull(); // wrong check digit
+	});
+});
+
+describe("customerFor inside another folder", () => {
+	it("finds the customer's folder further down", () => {
+		expect(customerFor("Label Designs/LENHAMS/BILTONG LABELS/x.odg")).toBe("Lenhams");
+		expect(customerFor("Label Designs/AMAZON/AMAZON EU/x.odg")).toBe("Amazon EU");
+	});
+});
+
+describe("fileToSkip", () => {
+	it("reads only .odg labels", () => {
+		expect(fileToSkip("LENHAMS/SRP/ORIGINAL.odg")).toBeNull();
+		expect(fileToSkip("LENHAMS/SRP/.~lock.ORIGINAL.odg#")).not.toBeNull();
+		expect(fileToSkip("LENHAMS/desktop.ini")).not.toBeNull();
+		expect(fileToSkip("LENHAMS/Labels - Shortcut.lnk")).not.toBeNull();
+		expect(fileToSkip("LENHAMS/old.zip")).toMatch(/unzip/);
+		expect(fileToSkip("LENHAMS/notes.pdf")).not.toBeNull();
 	});
 });

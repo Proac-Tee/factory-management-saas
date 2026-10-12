@@ -318,3 +318,66 @@ export function KeyboardIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function FolderIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" />
+    </Icon>
+  );
+}
+
+export function FolderOpenIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 19l2.757 -7.351a1 1 0 0 1 .936 -.649h12.307a1 1 0 0 1 .986 1.164l-.996 5.211a2 2 0 0 1 -1.964 1.625h-14.026a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2h4l3 3h7a2 2 0 0 1 2 2v2" />
+    </Icon>
+  );
+}
+
+export function FolderPlusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 19h-7a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2h4l3 3h7a2 2 0 0 1 2 2v3.5" />
+      <path d="M16 19h6" />
+      <path d="M19 16v6" />
+    </Icon>
+  );
+}
+
+export function UploadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+      <path d="M7 9l5 -5l5 5" />
+      <path d="M12 4l0 12" />
+    </Icon>
+  );
+}
+
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 9l6 6l6 -6" />
+    </Icon>
+  );
+}
+
+export function FileIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+    </Icon>
+  );
+}
+
+export function FolderSymlinkIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 21v-4a3 3 0 0 1 3 -3h5" />
+      <path d="M8 17l3 -3l-3 -3" />
+      <path d="M3 11v-5a2 2 0 0 1 2 -2h4l3 3h7a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-9.5" />
+    </Icon>
+  );
+}

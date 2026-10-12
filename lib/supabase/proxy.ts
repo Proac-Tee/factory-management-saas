@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "./env";
 
-const PROTECTED_PREFIXES = ["/labels", "/scan", "/access", "/reset-password"];
+const PROTECTED_PREFIXES = ["/labels", "/label-images", "/scan", "/access", "/reset-password"];
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password"];
 
 // Carry refreshed session cookies and cache headers onto a redirect.

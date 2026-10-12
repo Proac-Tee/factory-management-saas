@@ -10,6 +10,7 @@ import { GENERAL } from "@/entities/library";
 import { shortDate } from "@/lib/format";
 import type { EditorView } from "@/use-cases/labels";
 import { ArchiveControl } from "./archive-control";
+import { FolderControl } from "./folder-control";
 import type { LabelEditorState } from "./use-label-editor";
 
 const washField = panelFieldClass.replace("bg-stock", "bg-wash");
@@ -26,7 +27,7 @@ const STORAGE_OPTIONS = [
  */
 export function DetailsForm({ editor, view }: { editor: LabelEditorState; view: EditorView }) {
 	const { details, changeDetail, fieldError, gtin, product, renamesProduct } = editor;
-	const { label, canEdit, customers, products } = view;
+	const { label, canEdit, customers, products, folders } = view;
 	const customerList = useId();
 	const productList = useId();
 	const errorFor = (field: DetailsField) => (fieldError?.field === field ? fieldError.message : undefined);
@@ -45,6 +46,8 @@ export function DetailsForm({ editor, view }: { editor: LabelEditorState; view: 
 						{[details.customer.trim() || "Customer", hasSku ? details.productName.trim() || "Product" : GENERAL, KIND_NAMES[details.kind]].join(" → ")}
 					</p>
 				</div>
+
+				{label && <FolderControl labelId={label.id} folderId={label.folderId} folders={folders} canEdit={canEdit} />}
 
 				<Field
 					label="Customer"

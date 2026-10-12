@@ -5,6 +5,7 @@
 
 import { z } from "zod";
 import { optionalGtinSchema } from "./gtin";
+import { type PlacedDesign, placedDesignSchema } from "./placed";
 import { firstIssue, rangeSchema, tidyText } from "./validation";
 
 export const MM_PER_PT = 25.4 / 72;
@@ -103,7 +104,7 @@ const partSchema = z.discriminatedUnion("kind", [textPartSchema, logoPartSchema,
 
 const { sizeMm, marginMm, gapMm } = LIMITS;
 
-export const designSchema = z
+export const stackDesignSchema = z
 	.object(
 		{
 			widthMm: rangeSchema(sizeMm, `Width must be ${sizeMm.min} to ${sizeMm.max} mm.`),
@@ -128,8 +129,11 @@ export const designSchema = z
 		});
 	});
 
-export type LabelDesign = z.output<typeof designSchema>;
-export type LabelPart = LabelDesign["parts"][number];
+/** A label laid out as parts stacked top to bottom (labels made in the app). */
+export type StackDesign = z.output<typeof stackDesignSchema>;
+/** Either layout: stacked, or placed as in the imported LibreOffice files. */
+export type LabelDesign = StackDesign | PlacedDesign;
+export type LabelPart = StackDesign["parts"][number];
 export type TextPart = Extract<LabelPart, { kind: "text" }>;
 export type LogoPart = Extract<LabelPart, { kind: "logo" }>;
 export type BarcodePart = Extract<LabelPart, { kind: "barcode" }>;
@@ -138,9 +142,12 @@ export type Weight = TextPart["weight"];
 
 export type DesignCheck = { ok: true; design: LabelDesign } | { ok: false; message: string };
 
-/** Parses a design; a problem with one part is told as "Part 3: …". */
+export const isPlaced = (design: LabelDesign): design is PlacedDesign => "layout" in design && design.layout === "placed";
+
+/** Parses a design of either layout; a problem with one part is told as "Part 3: …". */
 export const parseDesign = (value: unknown): DesignCheck => {
-	const result = designSchema.safeParse(value);
+	const placed = typeof value === "object" && value !== null && (value as { layout?: unknown }).layout === "placed";
+	const result = placed ? placedDesignSchema.safeParse(value) : stackDesignSchema.safeParse(value);
 	if (result.success) return { ok: true, design: result.data };
 	const [issue] = result.error.issues;
 	const [field, index] = issue.path;
@@ -160,12 +167,17 @@ export type FieldValues = Partial<Record<FieldKey, string>>;
 
 const FIELD_PATTERN = /\{(batch|bbe|qty)\}/g;
 
+/** The text a design shows, line by line, in either layout. */
+export const textsOf = (design: LabelDesign): string[] =>
+	isPlaced(design)
+		? design.parts.flatMap((p) => (p.kind === "text" && p.visible ? p.paragraphs.map((q) => q.runs.map((r) => r.text).join("")) : []))
+		: design.parts.flatMap((p) => (p.kind === "text" && p.visible ? [p.text] : []));
+
 /** The fields a design asks for, in FIELDS order. */
 export const fieldsUsed = (design: LabelDesign): FieldKey[] => {
 	const used = new Set<string>();
-	for (const part of design.parts) {
-		if (part.kind !== "text" || !part.visible) continue;
-		for (const match of part.text.matchAll(FIELD_PATTERN)) used.add(match[1]);
+	for (const text of textsOf(design)) {
+		for (const match of text.matchAll(FIELD_PATTERN)) used.add(match[1]);
 	}
 	return FIELDS.map((f) => f.key).filter((key) => used.has(key));
 };
@@ -190,7 +202,7 @@ export const partHeightMm = (part: LabelPart): number => {
 export type Fit = { usedMm: number; spareMm: number; fits: boolean };
 
 /** How much of the label's height the shown parts use, margins included. */
-export const checkFit = (design: LabelDesign): Fit => {
+export const checkFit = (design: StackDesign): Fit => {
 	const shown = design.parts.filter((p) => p.visible);
 	const partsMm = shown.reduce((sum, p) => sum + partHeightMm(p), 0);
 	const gapsMm = Math.max(shown.length - 1, 0) * design.gapMm;
@@ -200,7 +212,7 @@ export const checkFit = (design: LabelDesign): Fit => {
 };
 
 /** Width text can use: the label minus its side margins. */
-export const usableWidthMm = (design: LabelDesign): number =>
+export const usableWidthMm = (design: StackDesign): number =>
 	design.widthMm - 2 * design.marginMm;
 
 // ─── Label details (not layout) ──────────────────────────────────────────────
@@ -274,7 +286,7 @@ export const checkDetails = (input: unknown): DetailsCheck => {
 // ─── A fresh label ───────────────────────────────────────────────────────────
 
 /** The default case label, as on the printed Ember SRP labels. */
-export const newDesign = (): LabelDesign => ({
+export const newDesign = (): StackDesign => ({
 	widthMm: 100,
 	heightMm: 100,
 	marginMm: 4,

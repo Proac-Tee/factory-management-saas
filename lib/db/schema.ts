@@ -17,7 +17,7 @@ import { ROLES } from "../../entities/roles";
 // Role checks for policies. private.has_role() reads the signed-in person's
 // role from the allowed list (drizzle/0002_app_role_function.sql).
 const hasRole = (...roles: string[]) =>
-	sql.raw(`private.has_role(${roles.map((r) => `'${r}'`).join(", ")})`);
+	sql.raw(`(select private.has_role(${roles.map((r) => `'${r}'`).join(", ")}))`);
 const anyRole = hasRole(...ROLES);
 
 // One row per Supabase Auth user, created by the on_auth_user_created

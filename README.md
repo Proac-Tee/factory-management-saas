@@ -34,6 +34,9 @@ The same rules are enforced twice: in the app (`entities/roles.ts`,
    `pnpm labels:import "/path/to/Label Designs"`
 6. In Supabase Auth → URL Configuration, add `<your site>/auth/confirm` to the
    redirect URLs (password reset and email confirmation links land there).
+7. In production, set `SITE_URL` to the app's address. Email links are built
+   from it; without it they fall back to the request's Origin header, which
+   a request can fake.
 
 ### Local development
 
@@ -91,6 +94,17 @@ an SRP, shipper and pallet label sit side by side under one product name
 the customer's **General** group. Editors set the customer, SKU, product
 name and type on the label's **Details and group** tab; renaming a product
 there renames it on all its labels. **Type** and **Size** give flat views.
+
+## Security
+
+- Every page checks the signed-in person and their role on the server
+  (`lib/auth.ts`); Postgres row level security enforces the same rules again.
+- Server actions parse their input with Zod before using it.
+- Links from emails only redirect within the site (`lib/safe-redirect.ts`).
+- Security headers are set in `next.config.ts`. There's no script-src CSP:
+  a nonce-based one would make every page render per request.
+- In the Supabase dashboard, keep email confirmation on and turn on leaked
+  password protection (Auth → Providers → Email).
 
 ## Printing
 

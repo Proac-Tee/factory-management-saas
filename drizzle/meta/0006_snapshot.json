@@ -1,0 +1,743 @@
+{
+  "id": "e8fe1839-7380-484f-9fb0-f9388f4946cc",
+  "prevId": "f67f806d-545b-49d1-a979-0d955268c48a",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.allowed_emails": {
+      "name": "allowed_emails",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "app_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'operator'"
+        },
+        "added_by": {
+          "name": "added_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "allowed_emails_added_by_profiles_id_fk": {
+          "name": "allowed_emails_added_by_profiles_id_fk",
+          "tableFrom": "allowed_emails",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "added_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "allowed_emails_select": {
+          "name": "allowed_emails_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin')) or \"allowed_emails\".\"email\" = lower((select auth.jwt() ->> 'email'))"
+        },
+        "allowed_emails_insert": {
+          "name": "allowed_emails_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "(select private.has_role('admin')) and \"allowed_emails\".\"added_by\" = (select auth.uid())"
+        },
+        "allowed_emails_update": {
+          "name": "allowed_emails_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin'))",
+          "withCheck": "(select private.has_role('admin'))"
+        },
+        "allowed_emails_delete": {
+          "name": "allowed_emails_delete",
+          "as": "PERMISSIVE",
+          "for": "DELETE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin'))"
+        }
+      },
+      "checkConstraints": {
+        "allowed_emails_lowercase": {
+          "name": "allowed_emails_lowercase",
+          "value": "\"allowed_emails\".\"email\" = lower(btrim(\"allowed_emails\".\"email\"))"
+        },
+        "allowed_emails_format": {
+          "name": "allowed_emails_format",
+          "value": "\"allowed_emails\".\"email\" ~ '^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.label_checks": {
+      "name": "label_checks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "label_id": {
+          "name": "label_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expected": {
+          "name": "expected",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scanned": {
+          "name": "scanned",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "check_result",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checked_by": {
+          "name": "checked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "label_checks_label_idx": {
+          "name": "label_checks_label_idx",
+          "columns": [
+            {
+              "expression": "label_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "checked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "label_checks_label_id_labels_id_fk": {
+          "name": "label_checks_label_id_labels_id_fk",
+          "tableFrom": "label_checks",
+          "tableTo": "labels",
+          "columnsFrom": [
+            "label_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "label_checks_checked_by_profiles_id_fk": {
+          "name": "label_checks_checked_by_profiles_id_fk",
+          "tableFrom": "label_checks",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "checked_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "label_checks_select": {
+          "name": "label_checks_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin', 'editor', 'operator'))"
+        },
+        "label_checks_insert": {
+          "name": "label_checks_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "(select private.has_role('admin', 'editor', 'operator')) and \"label_checks\".\"checked_by\" = (select auth.uid())"
+        }
+      },
+      "checkConstraints": {
+        "label_checks_result_matches": {
+          "name": "label_checks_result_matches",
+          "value": "(\"label_checks\".\"result\" = 'pass') = (\"label_checks\".\"scanned\" = \"label_checks\".\"expected\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.labels": {
+      "name": "labels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customer": {
+          "name": "customer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "label_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sku": {
+          "name": "sku",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "storage": {
+          "name": "storage",
+          "type": "storage_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "barcode": {
+          "name": "barcode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "design": {
+          "name": "design",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_file": {
+          "name": "source_file",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "labels_barcode_idx": {
+          "name": "labels_barcode_idx",
+          "columns": [
+            {
+              "expression": "barcode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "labels_customer_idx": {
+          "name": "labels_customer_idx",
+          "columns": [
+            {
+              "expression": "customer",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "labels_sku_idx": {
+          "name": "labels_sku_idx",
+          "columns": [
+            {
+              "expression": "sku",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "labels_sku_products_sku_fk": {
+          "name": "labels_sku_products_sku_fk",
+          "tableFrom": "labels",
+          "tableTo": "products",
+          "columnsFrom": [
+            "sku"
+          ],
+          "columnsTo": [
+            "sku"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "cascade"
+        },
+        "labels_created_by_profiles_id_fk": {
+          "name": "labels_created_by_profiles_id_fk",
+          "tableFrom": "labels",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "labels_updated_by_profiles_id_fk": {
+          "name": "labels_updated_by_profiles_id_fk",
+          "tableFrom": "labels",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "labels_source_file_unique": {
+          "name": "labels_source_file_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "source_file"
+          ]
+        }
+      },
+      "policies": {
+        "labels_select": {
+          "name": "labels_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin', 'editor', 'operator'))"
+        },
+        "labels_insert": {
+          "name": "labels_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "(select private.has_role('admin', 'editor')) and \"labels\".\"created_by\" = (select auth.uid()) and \"labels\".\"updated_by\" = (select auth.uid())"
+        },
+        "labels_update": {
+          "name": "labels_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin', 'editor'))",
+          "withCheck": "(select private.has_role('admin', 'editor')) and \"labels\".\"updated_by\" = (select auth.uid())"
+        }
+      },
+      "checkConstraints": {
+        "labels_name_not_blank": {
+          "name": "labels_name_not_blank",
+          "value": "btrim(\"labels\".\"name\") <> ''"
+        },
+        "labels_customer_not_blank": {
+          "name": "labels_customer_not_blank",
+          "value": "btrim(\"labels\".\"customer\") <> ''"
+        },
+        "labels_sku_format": {
+          "name": "labels_sku_format",
+          "value": "\"labels\".\"sku\" is null or \"labels\".\"sku\" ~ '^[A-Z0-9-]{3,20}$'"
+        },
+        "labels_barcode_format": {
+          "name": "labels_barcode_format",
+          "value": "\"labels\".\"barcode\" is null or \"labels\".\"barcode\" ~ '^[0-9]{13,14}$'"
+        },
+        "labels_design_is_object": {
+          "name": "labels_design_is_object",
+          "value": "jsonb_typeof(\"labels\".\"design\") = 'object'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.products": {
+      "name": "products",
+      "schema": "",
+      "columns": {
+        "sku": {
+          "name": "sku",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "products_created_by_profiles_id_fk": {
+          "name": "products_created_by_profiles_id_fk",
+          "tableFrom": "products",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "products_updated_by_profiles_id_fk": {
+          "name": "products_updated_by_profiles_id_fk",
+          "tableFrom": "products",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "products_select": {
+          "name": "products_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin', 'editor', 'operator'))"
+        },
+        "products_insert": {
+          "name": "products_insert",
+          "as": "PERMISSIVE",
+          "for": "INSERT",
+          "to": [
+            "authenticated"
+          ],
+          "withCheck": "(select private.has_role('admin', 'editor')) and \"products\".\"created_by\" = (select auth.uid()) and \"products\".\"updated_by\" = (select auth.uid())"
+        },
+        "products_update": {
+          "name": "products_update",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin', 'editor'))",
+          "withCheck": "(select private.has_role('admin', 'editor')) and \"products\".\"updated_by\" = (select auth.uid())"
+        }
+      },
+      "checkConstraints": {
+        "products_sku_format": {
+          "name": "products_sku_format",
+          "value": "\"products\".\"sku\" ~ '^[A-Z0-9-]{3,20}$'"
+        },
+        "products_name_not_blank": {
+          "name": "products_name_not_blank",
+          "value": "btrim(\"products\".\"name\") <> ''"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.profiles": {
+      "name": "profiles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "profiles_id_users_id_fk": {
+          "name": "profiles_id_users_id_fk",
+          "tableFrom": "profiles",
+          "tableTo": "users",
+          "schemaTo": "auth",
+          "columnsFrom": [
+            "id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "profiles_select_own": {
+          "name": "profiles_select_own",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"profiles\".\"id\" = (select auth.uid())"
+        },
+        "profiles_select_team": {
+          "name": "profiles_select_team",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "(select private.has_role('admin', 'editor', 'operator'))"
+        },
+        "profiles_update_own": {
+          "name": "profiles_update_own",
+          "as": "PERMISSIVE",
+          "for": "UPDATE",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"profiles\".\"id\" = (select auth.uid())",
+          "withCheck": "\"profiles\".\"id\" = (select auth.uid())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {
+    "public.app_role": {
+      "name": "app_role",
+      "schema": "public",
+      "values": [
+        "admin",
+        "editor",
+        "operator"
+      ]
+    },
+    "public.check_result": {
+      "name": "check_result",
+      "schema": "public",
+      "values": [
+        "pass",
+        "fail"
+      ]
+    },
+    "public.label_kind": {
+      "name": "label_kind",
+      "schema": "public",
+      "values": [
+        "srp",
+        "shipper",
+        "pallet",
+        "hold",
+        "waste",
+        "sample",
+        "address",
+        "barcode",
+        "other"
+      ]
+    },
+    "public.storage_type": {
+      "name": "storage_type",
+      "schema": "public",
+      "values": [
+        "ambient",
+        "chilled"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

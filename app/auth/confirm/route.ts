@@ -1,6 +1,10 @@
-import type { EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 import { createClient } from "@/lib/supabase/server";
+
+// The email link types Supabase sends (EmailOtpType); anything else is refused.
+const otpType = z.enum(["signup", "invite", "magiclink", "recovery", "email_change", "email"]).nullable().catch(null);
 
 // Target of Supabase email links (signup confirmation, magic link, etc.).
 // Handles both the PKCE `code` flow and the `token_hash` email template.
@@ -8,10 +12,8 @@ export async function GET(request: NextRequest) {
 	const { searchParams, origin } = request.nextUrl;
 	const code = searchParams.get("code");
 	const tokenHash = searchParams.get("token_hash");
-	const type = searchParams.get("type") as EmailOtpType | null;
-	const next = searchParams.get("next") ?? "/labels";
-	// Only allow same-site relative paths to avoid an open redirect.
-	const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/labels";
+	const type = otpType.parse(searchParams.get("type"));
+	const safeNext = safeRedirectPath(searchParams.get("next"), origin);
 
 	const supabase = await createClient();
 	const { error } = code

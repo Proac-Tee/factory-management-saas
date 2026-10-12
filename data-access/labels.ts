@@ -40,10 +40,14 @@ const toSummary = (row: { updatedAt: Date } & Omit<LabelSummary, "updatedAt">): 
 	updatedAt: row.updatedAt.toISOString(),
 });
 
+/** A search term for ILIKE: %, _ and \ match themselves, not anything. */
+const likeTerm = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
 /** Labels in use, optionally narrowed by a search over name, customer, product, SKU and barcode. */
 export const listLabels = (claims: JwtPayload, { query, kind }: { query?: string; kind?: LabelKind } = {}) =>
 	withRls(claims, async (tx) => {
 		const q = query?.trim();
+		const term = q ? likeTerm(q) : "";
 		const rows = await tx
 			.select(summary)
 			.from(labels)
@@ -54,10 +58,10 @@ export const listLabels = (claims: JwtPayload, { query, kind }: { query?: string
 					kind ? eq(labels.kind, kind) : undefined,
 					q
 						? or(
-								ilike(labels.name, `%${q}%`),
-								ilike(labels.sku, `%${q}%`),
-								ilike(labels.customer, `%${q}%`),
-								ilike(products.name, `%${q}%`),
+								ilike(labels.name, term),
+								ilike(labels.sku, term),
+								ilike(labels.customer, term),
+								ilike(products.name, term),
 								eq(labels.barcode, q.replace(/\s+/g, "")),
 							)
 						: undefined,

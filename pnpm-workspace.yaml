@@ -1,2 +1,5 @@
+# Dependencies allowed to run install scripts (pnpm blocks all others).
+# Both only fetch/verify their prebuilt native binary.
 allowBuilds:
-  unrs-resolver: set this to true or false
+  esbuild: true # via drizzle-kit
+  unrs-resolver: true # via eslint-config-next

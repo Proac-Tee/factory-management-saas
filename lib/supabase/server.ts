@@ -1,13 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { supabasePublishableKey, supabaseUrl } from "./env";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+// Create a new client per request; never share one across requests.
+export const createClient = async () => {
+	const cookieStore = await cookies();
 
-export const createClient = (
-	cookieStore: Awaited<ReturnType<typeof cookies>>,
-) => {
-	return createServerClient(supabaseUrl!, supabaseKey!, {
+	return createServerClient(supabaseUrl, supabasePublishableKey, {
 		cookies: {
 			getAll() {
 				return cookieStore.getAll();
@@ -19,8 +18,7 @@ export const createClient = (
 					);
 				} catch {
 					// The `setAll` method was called from a Server Component.
-					// This can be ignored if you have middleware refreshing
-					// user sessions.
+					// This can be ignored because `proxy.ts` refreshes user sessions.
 				}
 			},
 		},

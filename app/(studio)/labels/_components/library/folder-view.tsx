@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPending } from "@/components/link-pending";
 import { ChevronRightIcon, FolderIcon, FolderOpenIcon } from "@/components/icons";
 import { folderOptions, type FolderNode } from "@/entities/folders";
 import { KIND_NAMES } from "@/entities/label";
@@ -27,6 +28,7 @@ export function FolderView({ library, query, canEdit }: { library: FolderLibrary
 						className="flex h-10 items-center gap-2 rounded-[6px] px-2 text-base font-bold transition-colors duration-150 hover:bg-wash aria-[current]:bg-ink aria-[current]:text-stock"
 					>
 						All folders
+						<LinkPending />
 					</Link>
 					<TreeLevel nodes={tree} query={query} openIds={openIds} openId={open?.id ?? null} depth={0} />
 					{tree.length === 0 && (
@@ -69,7 +71,7 @@ export function FolderView({ library, query, canEdit }: { library: FolderLibrary
 											href={libraryHref(query, { folder: folder.id })}
 											className="group flex min-h-14 items-center gap-3 py-2.5 pr-1 transition-colors duration-150 hover:bg-wash"
 										>
-											<FolderIcon size={22} className="shrink-0" />
+											<LinkPending icon={<FolderIcon size={22} className="shrink-0" />} spinnerSize={22} />
 											<span className="min-w-0 flex-1 truncate text-base leading-5 font-bold group-hover:underline">{folder.name}</span>
 											<span className="shrink-0 text-sm leading-[18px] text-graphite tabular-nums">
 												{folder.children.length > 0 &&
@@ -137,7 +139,7 @@ function TreeLevel({
 							style={{ paddingLeft: `${8 + depth * 16}px` }}
 							className="flex min-h-10 items-center gap-2 rounded-[6px] pr-2 text-base transition-colors duration-150 hover:bg-wash aria-[current]:bg-ink aria-[current]:font-bold aria-[current]:text-stock"
 						>
-							{expanded ? <FolderOpenIcon size={18} className="shrink-0" /> : <FolderIcon size={18} className="shrink-0" />}
+							<LinkPending icon={expanded ? <FolderOpenIcon size={18} className="shrink-0" /> : <FolderIcon size={18} className="shrink-0" />} />
 							<span className="min-w-0 flex-1 truncate">{node.name}</span>
 							<span className={`text-sm tabular-nums ${current ? "" : "text-graphite"}`}>{node.totalCount}</span>
 						</Link>
@@ -163,6 +165,7 @@ function Breadcrumbs({ path, query }: { path: { id: string; name: string }[]; qu
 					) : (
 						<Link href={libraryHref(query, { folder: undefined })} className="font-bold underline underline-offset-2">
 							All folders
+							<LinkPending />
 						</Link>
 					)}
 				</li>
@@ -176,6 +179,7 @@ function Breadcrumbs({ path, query }: { path: { id: string; name: string }[]; qu
 						) : (
 							<Link href={libraryHref(query, { folder: folder.id })} className="truncate font-bold underline underline-offset-2">
 								{folder.name}
+								<LinkPending />
 							</Link>
 						)}
 					</li>

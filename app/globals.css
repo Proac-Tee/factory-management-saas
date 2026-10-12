@@ -186,3 +186,25 @@ body {
 		background: white;
 	}
 }
+
+/* While a page loads: the bar feeds across the top like paper from a printer,
+   slowing as it goes, so it never claims to be done before the page is. */
+@keyframes nav-progress {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(0.9);
+	}
+}
+.nav-progress {
+	transform-origin: left;
+	animation: nav-progress 8s var(--ease-out-expo) both;
+}
+@media (prefers-reduced-motion: reduce) {
+	.nav-progress {
+		animation: fade-in 200ms ease-out both;
+		transform: scaleX(1);
+		opacity: 0.6;
+	}
+}

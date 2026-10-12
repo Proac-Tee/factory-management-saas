@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LinkPending } from "@/components/link-pending";
 import { useState } from "react";
 import { segmentClass, useSegmentPill } from "@/components/segment-pill";
 import { GROUPINGS, type Grouping, type LibraryQuery, libraryHref } from "@/entities/library";
@@ -28,6 +29,7 @@ export function GroupByNav({ query }: { query: LibraryQuery }) {
 					className={`flex h-10 flex-1 items-center justify-center rounded-[6px] px-3 text-base sm:flex-none sm:px-4 pointer-coarse:h-12 ${segmentClass(g === shown, ready)}`}
 				>
 					{GROUPINGS[g]}
+					<LinkPending />
 				</Link>
 			))}
 		</nav>

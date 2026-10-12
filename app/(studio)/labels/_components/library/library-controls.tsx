@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPending } from "@/components/link-pending";
 import { ChevronDownIcon } from "@/components/icons";
 import { KIND_NAMES, LABEL_KINDS } from "@/entities/label";
 import { type LibraryQuery, libraryHref } from "@/entities/library";
@@ -28,6 +29,7 @@ function KindFilter({ query }: { query: LibraryQuery }) {
 				<li>
 					<Link href={libraryHref(query, { kind: undefined })} className="flex h-11 items-center rounded-[6px] px-3 transition-colors duration-150 hover:bg-wash">
 						All types
+						<LinkPending />
 					</Link>
 				</li>
 				{LABEL_KINDS.map((k) => (
@@ -38,6 +40,7 @@ function KindFilter({ query }: { query: LibraryQuery }) {
 							className="flex h-11 items-center rounded-[6px] px-3 transition-colors duration-150 hover:bg-wash aria-[current]:font-bold"
 						>
 							{KIND_NAMES[k]}
+							<LinkPending />
 						</Link>
 					</li>
 				))}

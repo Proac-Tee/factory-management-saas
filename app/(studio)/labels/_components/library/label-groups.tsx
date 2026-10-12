@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPending } from "@/components/link-pending";
 import { AlertTriangleIcon } from "@/components/icons";
 import { LabelRender } from "@/components/label-render";
 import { KIND_NAMES, needsBarcodeNumber } from "@/entities/label";
@@ -71,8 +72,9 @@ export function LabelGrid({
 			{labels.map((label) => (
 				<li key={label.id}>
 					<Link href={`/labels/${label.id}`} className="group flex flex-col gap-2.5">
-						<div className="flex aspect-square items-center justify-center rounded-[4px] border border-rule bg-stock p-2 transition-colors duration-150 [container-type:size] group-hover:border-ink [&_.barcode-missing-note]:invisible">
+						<div className="relative flex aspect-square items-center justify-center rounded-[4px] border border-rule bg-stock p-2 transition-colors duration-150 [container-type:size] group-hover:border-ink [&_.barcode-missing-note]:invisible">
 							<LabelRender design={label.design} barcode={label.barcode} scale="fit" />
+							<LinkPending overlay />
 						</div>
 						<div className="flex flex-col gap-0.5">
 							<span className="text-base leading-5 font-bold underline-offset-2 group-hover:underline">{label.name}</span>

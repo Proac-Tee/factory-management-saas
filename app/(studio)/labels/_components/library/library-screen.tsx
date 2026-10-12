@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { PlusIcon, ScanIcon } from "@/components/icons";
+import { PlusIcon, ScanIcon, UploadIcon } from "@/components/icons";
 import { FlashToast } from "@/components/toast";
 import { button, PageHeader } from "@/components/ui";
 import type { LibraryView } from "@/use-cases/labels";
+import { FolderView } from "./folder-view";
 import { CustomerSection, FlatSection } from "./label-groups";
 import { LibraryControls } from "./library-controls";
 import { SearchBox } from "./search-box";
@@ -18,15 +19,21 @@ export function LibraryScreen({ view }: { view: LibraryView }) {
 				context={`${plural(total, "label", "labels")}, ${plural(customerCount, "customer", "customers")}`}
 				title="Labels"
 			>
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+				<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
 					<SearchBox query={query} />
-					<div className="flex gap-3">
-						<Link href="/scan" className={`${button({ variant: "outline", size: "md" })} flex-1 sm:flex-none`}>
+					<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:flex">
+						<Link href="/scan" className={`${button({ variant: "outline", size: "md" })} ${canEdit ? "" : "col-span-2 sm:col-span-1"}`}>
 							<ScanIcon size={18} />
 							Scan
 						</Link>
 						{canEdit && (
-							<Link href="/labels/new" className={`${button({ size: "md" })} flex-1 sm:flex-none`}>
+							<Link href="/labels/upload" className={button({ variant: "outline", size: "md" })}>
+								<UploadIcon size={18} />
+								Upload
+							</Link>
+						)}
+						{canEdit && (
+							<Link href="/labels/new" className={`${button({ size: "md" })} col-span-2 sm:col-span-1`}>
 								<PlusIcon size={18} strokeWidth={2.5} />
 								New label
 							</Link>
@@ -41,9 +48,11 @@ export function LibraryScreen({ view }: { view: LibraryView }) {
 				)}
 				<LibraryControls query={query} />
 
-				{total === 0 ? (
+				{library.group === "folder" && !(library.results && total === 0) ? (
+					<FolderView library={library} query={query} canEdit={canEdit} />
+				) : total === 0 ? (
 					<EmptyLibrary search={query.q} />
-				) : library.group === "customer" ? (
+				) : library.group === "folder" ? null : library.group === "customer" ? (
 					library.customers.map((customer) => <CustomerSection key={customer.name} customer={customer} />)
 				) : (
 					library.groups.map((group) => <FlatSection key={group.name} group={group} />)
@@ -60,7 +69,7 @@ function EmptyLibrary({ search }: { search: string }) {
 			<p className="max-w-[60ch] text-base leading-normal text-graphite">
 				{search
 					? "Search looks at the name, customer, product, SKU and the full barcode number. Try fewer words."
-					: "Make the first one, or import the LibreOffice labels with pnpm labels:import."}
+					: "Make the first one, or upload a folder of LibreOffice labels."}
 			</p>
 		</div>
 	);

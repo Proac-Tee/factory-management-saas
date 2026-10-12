@@ -4,7 +4,7 @@
 //
 //   pnpm test:db   (needs the local Supabase: supabase start)
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import postgres, { type TransactionSql } from "postgres";
 import { afterAll, describe, expect, it } from "vitest";
 import { newDesign } from "../../entities/label";
@@ -188,6 +188,50 @@ describe.skipIf(!sql)("database rules", () => {
 			expect(
 				await errorOf(tx, (sp) => sp`insert into public.labels (name, customer, kind, design, sku) values ('X', 'Ember', 'srp', ${tx.json(newDesign())}, 'NO-SUCH')`),
 			).toMatch(/labels_sku_products_sku_fk/);
+		});
+	});
+	it("keeps folders tidy: editors only, one name per folder, no loops, only empty ones deleted", async () => {
+		await inRollback(async (tx) => {
+			const p = await people(tx, { editor: "editor", operator: "operator" });
+
+			await as(tx, p.operator, p["operator:email"]);
+			expect(await errorOf(tx, (sp) => sp`insert into public.folders (name, created_by) values ('NOPE', ${p.operator})`)).toMatch(/row-level security/);
+			await asOwner(tx);
+
+			await as(tx, p.editor, p["editor:email"]);
+			const [top] = await tx`insert into public.folders (name, created_by) values ('LENHAMS', ${p.editor}) returning id`;
+			const [sub] = await tx`insert into public.folders (name, parent_id, created_by) values ('SRP LABELS', ${top.id}, ${p.editor}) returning id`;
+			expect(await errorOf(tx, (sp) => sp`insert into public.folders (name, created_by) values ('lenhams', ${p.editor})`)).toMatch(/folders_name_in_parent/);
+			expect(await errorOf(tx, (sp) => sp`update public.folders set parent_id = ${sub.id} where id = ${top.id}`)).toMatch(/can't go inside itself/);
+
+			const [label] = await tx`insert into public.labels (name, customer, kind, design, folder_id, created_by, updated_by)
+				values ('In a folder', 'Lenhams', 'srp', ${tx.json(newDesign())}, ${sub.id}, ${p.editor}, ${p.editor}) returning id`;
+			expect(await errorOf(tx, (sp) => sp`delete from public.folders where id = ${sub.id}`)).toMatch(/labels_folder_id_folders_id_fk/);
+			await tx`update public.labels set folder_id = ${top.id}, updated_by = ${p.editor} where id = ${label.id}`;
+			const deleted = await tx`delete from public.folders where id = ${sub.id} returning id`;
+			expect(deleted).toHaveLength(1);
+		});
+	});
+
+	it("stores a picture only under its own SHA-256, and only for editors", async () => {
+		await inRollback(async (tx) => {
+			const p = await people(tx, { editor: "editor", operator: "operator" });
+			const bytes = Buffer.from("not really a png");
+			const hash = createHash("sha256").update(bytes).digest("hex");
+
+			await as(tx, p.operator, p["operator:email"]);
+			expect(await errorOf(tx, (sp) => sp`insert into public.label_images (hash, content_type, bytes, created_by) values (${hash}, 'image/png', ${bytes}, ${p.operator})`)).toMatch(/row-level security/);
+			await asOwner(tx);
+
+			await as(tx, p.editor, p["editor:email"]);
+			expect(await errorOf(tx, (sp) => sp`insert into public.label_images (hash, content_type, bytes, created_by) values (${"0".repeat(64)}, 'image/png', ${bytes}, ${p.editor})`)).toMatch(/label_images_hash_matches/);
+			expect(await errorOf(tx, (sp) => sp`insert into public.label_images (hash, content_type, bytes, created_by) values (${hash}, 'image/svg+xml', ${bytes}, ${p.editor})`)).toMatch(/label_images_type/);
+			await tx`insert into public.label_images (hash, content_type, bytes, created_by) values (${hash}, 'image/png', ${bytes}, ${p.editor})`;
+			await asOwner(tx);
+
+			await as(tx, p.operator, p["operator:email"]);
+			const [seen] = await tx`select content_type from public.label_images where hash = ${hash}`;
+			expect(seen).toEqual({ content_type: "image/png" });
 		});
 	});
 });

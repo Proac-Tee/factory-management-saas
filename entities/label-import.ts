@@ -1,29 +1,13 @@
-// Turns a LibreOffice Draw label (.odg) into a label for the studio. The
-// script in scripts/import-labels.mts reads the file into OdgItems; the rules
-// for naming, grouping and stacking the parts live here so they're tested.
+// Turns a LibreOffice Draw label (.odg) into a label for the studio, laid out
+// exactly as drawn (a "placed" design). entities/odg.ts reads the file; the
+// rules for naming, grouping and finding the barcode live here, tested.
 
+import { readBars } from "./barcode-read";
 import { checkGtin } from "./gtin";
-import {
-	checkFit,
-	type LabelDesign,
-	type LabelKind,
-	type LabelPart,
-	LIMITS,
-	type Storage,
-} from "./label";
-
-/** A text box or picture on the drawing, in mm from the top left. */
-export type OdgItem =
-	| { kind: "text"; xMm: number; yMm: number; widthMm: number; lines: { text: string; sizePt: number }[] }
-	| {
-			kind: "image";
-			xMm: number;
-			yMm: number;
-			widthMm: number;
-			heightMm: number;
-			/** For a barcode picture: the text read from its bars, if any. */
-			decoded?: string | null;
-	  };
+import type { LabelKind, Storage } from "./label";
+import { imageSizeMm } from "./image-size";
+import type { OdgDocument, OdgItem } from "./odg";
+import type { PlacedDesign, PlacedPart } from "./placed";
 
 /**
  * The product number (GTIN) in what a barcode reader returned, or null if
@@ -41,18 +25,19 @@ export const gtinFromScan = (text: string): string | null => {
 	return check.ok ? check.gtin : null;
 };
 
-/** Wide pictures are barcodes; anything squarer is the logo. */
-export const isBarcodePicture = (item: { widthMm: number; heightMm: number }) =>
-	item.heightMm > 0 && item.widthMm / item.heightMm >= 1.8;
-
 export type ImportedLabel = {
+	/** Where the file sits, e.g. ["LENHAMS", "BILTONG LABELS", "SRP LABELS"]. */
+	folderPath: string[];
+	sourceFile: string;
 	name: string;
 	customer: string;
 	kind: LabelKind;
 	sku: string | null;
 	storage: Storage | null;
 	barcode: string | null;
-	design: LabelDesign;
+	design: PlacedDesign;
+	/** What couldn't be carried over, in plain words. */
+	warnings: string[];
 };
 
 // ─── Grouping, from where the file sits ──────────────────────────────────────
@@ -72,10 +57,32 @@ const CUSTOMERS: [RegExp, string][] = [
 export const customerFor = (path: string): string => {
 	// Tesco and Alliance labels sit in other customers' folders, so check the
 	// file name before the folder.
-	const file = path.split("/").at(-1) ?? path;
+	const segments = path.split("/");
+	const file = segments.at(-1) ?? path;
 	if (/TESCO/i.test(file)) return "Tesco";
 	if (/ALLIANCE/i.test(file)) return "Alliance";
-	return CUSTOMERS.find(([pattern]) => pattern.test(path))?.[1] ?? "Ember";
+	// The customer's folder may sit inside another ("Label Designs/LENHAMS/…").
+	for (let i = 0; i < segments.length - 1; i++) {
+		const from = segments.slice(i).join("/");
+		const found = CUSTOMERS.find(([pattern]) => pattern.test(from));
+		if (found) return found[1];
+	}
+	return "Ember";
+};
+
+/**
+ * Files in a dropped folder that aren't labels: LibreOffice lock files,
+ * Windows and Mac leftovers, shortcuts and archives. Only .odg files are read.
+ */
+export const fileToSkip = (path: string): string | null => {
+	const name = path.split("/").at(-1) ?? path;
+	if (path.split("/").some((s) => s.startsWith(".") || s === "__MACOSX")) return "a hidden or system file";
+	if (/^(\.~lock\.|~\$|~)/.test(name)) return "a LibreOffice lock file";
+	if (/^(desktop\.ini|thumbs\.db)$/i.test(name)) return "a Windows file";
+	if (/\.lnk$/i.test(name)) return "a shortcut";
+	if (/\.(zip|rar|7z)$/i.test(name)) return "an archive; unzip it first";
+	if (!/\.odg$/i.test(name)) return "not a LibreOffice Draw file (.odg)";
+	return null;
 };
 
 export const kindFor = (path: string): LabelKind => {
@@ -167,146 +174,107 @@ export const withFields = (text: string): string =>
 		.replace(/(BBE:)\s*[0-9]{1,3}[ .][0-9]{2}[ .][0-9]{2}/i, "$1 {bbe}")
 		.replace(/(QTY:)\s*[0-9]+/i, "$1 {qty}");
 
-// ─── Stacking ────────────────────────────────────────────────────────────────
+// ─── Placing ─────────────────────────────────────────────────────────────────
 
-type Row = { yMm: number; sizePt: number; texts: { xMm: number; text: string }[] };
+/** What the caller found out about each picture in the file (by its path). */
+export type PictureInfo = Record<
+	string,
+	{
+		/** SHA-256 of the picture as stored, or null if it can't be shown (PDF, SVM…). */
+		hash: string | null;
+		/** Text a barcode reader found in it, if any. */
+		scanned: string | null;
+	}
+>;
+
+/** Picture types browsers draw; anything else is left out with a warning. */
+export const SHOWABLE_PICTURE = /\.(png|jpe?g|gif|webp)$/i;
 
 /**
- * The old labels place boxes freely. The studio stacks parts, so boxes on the
- * same line (e.g. BATCH on the left, BBE on the right) join into one line,
- * then everything is ordered top to bottom.
+ * Bars drawn as filled rectangles: the largest group of rectangles that
+ * share a top and a height (the frame around an ITF-14 doesn't).
  */
-export const toDesign = (
-	page: { widthMm: number; heightMm: number },
-	items: OdgItem[],
-): { design: LabelDesign; barcode: string | null } => {
-	const rows: Row[] = [];
-	const blocks: { yMm: number; part: LabelPart }[] = [];
-	let barcodeFromText: string | null = null;
-	let barcodeFromPicture: string | null = null;
-	let barcodeNumberPt = 0;
-
+const barsDrawnAsShapes = (items: OdgItem[]) => {
+	const groups = new Map<string, { x: number; width: number }[]>();
 	for (const item of items) {
+		if (item.kind !== "shape" || !item.fill || item.rotateDeg !== 0 || item.wMm <= 0) continue;
+		if (!/^M[\d.]+,[\d.]+( L[\d.]+,[\d.]+){3} Z$/.test(item.d)) continue;
+		const key = `${item.yMm.toFixed(2)}:${item.hMm.toFixed(2)}`;
+		groups.set(key, [...(groups.get(key) ?? []), { x: item.xMm, width: item.wMm }]);
+	}
+	return [...groups.values()].sort((a, b) => b.length - a.length);
+};
+
+const findBarcode = (doc: OdgDocument, pictures: PictureInfo, texts: string[]): string | null => {
+	for (const item of doc.items) {
+		const scanned = item.kind === "image" ? pictures[item.href]?.scanned : null;
+		const gtin = scanned ? gtinFromScan(scanned) : null;
+		if (gtin) return gtin;
+	}
+	for (const bars of barsDrawnAsShapes(doc.items)) {
+		const gtin = readBars(bars);
+		if (gtin) return gtin;
+	}
+	for (const text of texts) {
+		const digits = text.replace(/\s/g, "");
+		if (/^\d{13,14}$/.test(digits) && checkGtin(digits).ok) return digits;
+	}
+	return null;
+};
+
+/** A crop in mm of the picture's natural size, as shares of each side. */
+const cropOf = (cropMm: [number, number, number, number], bytes: Uint8Array | undefined): [number, number, number, number] => {
+	if (cropMm.every((v) => v === 0) || !bytes) return [0, 0, 0, 0];
+	const size = imageSizeMm(bytes);
+	if (!size) return [0, 0, 0, 0];
+	const [t, r, b, l] = cropMm;
+	const share = (v: number, of: number) => Math.min(0.95, v / of);
+	const crop: [number, number, number, number] = [share(t, size.heightMm), share(r, size.widthMm), share(b, size.heightMm), share(l, size.widthMm)];
+	return crop[0] + crop[2] < 1 && crop[1] + crop[3] < 1 ? crop : [0, 0, 0, 0];
+};
+
+/** The label for one file: its place in the folders, its details, and every part where it was drawn. */
+export const importLabel = (path: string, doc: OdgDocument, pictures: PictureInfo): ImportedLabel => {
+	const warnings = [...doc.warnings];
+	const texts = doc.items.flatMap((i) => (i.kind === "text" ? i.paragraphs.map((p) => p.runs.map((r) => r.text).join("")) : []));
+	const parts: PlacedPart[] = doc.items.map((item, index): PlacedPart => {
+		const id = `p${index + 1}`;
+		const { xMm, yMm, wMm, hMm, rotateDeg } = item;
+		const box = { id, xMm, yMm, wMm, hMm, rotateDeg, visible: true };
+		if (item.kind === "text") {
+			return {
+				...box,
+				kind: "text",
+				hAlign: item.hAlign,
+				vAlign: item.vAlign,
+				wrap: item.wrap,
+				paddingMm: item.paddingMm,
+				paragraphs: item.paragraphs.map((p) => ({
+					...p,
+					// Batch, BBE and quantity were typed in; make them fields filled in at print time.
+					runs: p.runs.map((r) => ({ ...r, text: withFields(r.text) })),
+				})),
+			};
+		}
 		if (item.kind === "image") {
-			const isBarcode = isBarcodePicture(item);
-			// The old files hold the barcode as a picture; its number is read from it.
-			const read = isBarcode && item.decoded ? gtinFromScan(item.decoded) : null;
-			if (read && !barcodeFromPicture) barcodeFromPicture = read;
-			blocks.push({
-				yMm: item.yMm,
-				part: isBarcode
-					? { id: "", kind: "barcode", heightMm: clamp(item.heightMm * 0.78, LIMITS.blockMm), numberSizePt: 10, visible: true }
-					: { id: "", kind: "logo", heightMm: clamp(item.heightMm * 0.7, LIMITS.blockMm), visible: true },
-			});
-			continue;
+			const info = pictures[item.href];
+			const hash = SHOWABLE_PICTURE.test(item.href) ? (info?.hash ?? null) : null;
+			if (!hash) warnings.push(`A picture (${item.href.split(".").at(-1)?.toUpperCase() ?? "?"}) can't be shown, so it's left blank.`);
+			return { ...box, kind: "image", image: hash, scanned: info?.scanned ?? null, crop: cropOf(item.cropMm, doc.pictures[item.href]) };
 		}
-		let yMm = item.yMm;
-		for (const line of item.lines) {
-			const text = line.text.replace(/\s+/g, " ").trim();
-			const lineMm = line.sizePt * 0.3528 * 1.15;
-			if (text !== "") {
-				const digits = text.replace(/\s/g, "");
-				const gtin = /^\d{13,14}$/.test(digits) ? checkGtin(digits) : null;
-				if (gtin?.ok) {
-					barcodeFromText = gtin.gtin;
-					barcodeNumberPt = line.sizePt;
-				} else {
-					const row = rows.find((r) => Math.abs(r.yMm - yMm) < 2.5);
-					if (row) {
-						row.texts.push({ xMm: item.xMm, text });
-						row.sizePt = Math.max(row.sizePt, line.sizePt);
-					} else {
-						rows.push({ yMm, sizePt: line.sizePt, texts: [{ xMm: item.xMm, text }] });
-					}
-				}
-			}
-			yMm += lineMm;
-		}
-	}
+		return { ...box, kind: "shape", viewBox: item.viewBox, d: item.d, fill: item.fill, stroke: item.stroke, strokeWidth: item.strokeWidth };
+	});
 
-	const textParts = rows.map((row) => ({
-		yMm: row.yMm,
-		part: {
-			id: "",
-			kind: "text",
-			text: withFields(
-				row.texts
-					.sort((a, b) => a.xMm - b.xMm)
-					.map((t) => t.text)
-					.join("   "),
-			).slice(0, LIMITS.textLength),
-			sizePt: clamp(row.sizePt, LIMITS.textPt),
-			weight: row.sizePt >= 18 ? 900 : 700,
-			align: "center",
-			visible: true,
-		} satisfies LabelPart,
-	}));
-
-	// A barcode number printed as text goes under the barcode, not as a line.
-	if (barcodeFromText && barcodeNumberPt > 0) {
-		const barcode = blocks.find((b) => b.part.kind === "barcode");
-		if (barcode && barcode.part.kind === "barcode") barcode.part.numberSizePt = clamp(barcodeNumberPt, LIMITS.numberPt);
-	}
-
-	const parts = [...blocks, ...textParts]
-		.sort((a, b) => a.yMm - b.yMm)
-		.map(({ part }, index) => ({ ...part, id: `p${index + 1}` }));
-
-	const small = Math.min(page.widthMm, page.heightMm) < 40;
-	const design: LabelDesign = {
-		widthMm: round1(page.widthMm),
-		heightMm: round1(page.heightMm),
-		marginMm: small ? 1.5 : 3,
-		gapMm: small ? 0.5 : 1,
-		parts: parts.slice(0, LIMITS.parts),
-	};
-	// What the bars say wins over a number typed beside them.
-	return { design: shrinkToFit(design), barcode: barcodeFromPicture ?? barcodeFromText };
-};
-
-/**
- * Freely placed boxes can add up to more than the label once stacked. Close
- * the gaps first, then scale every part down together until it fits.
- */
-export const shrinkToFit = (design: LabelDesign): LabelDesign => {
-	let result = design;
-	if (!checkFit(result).fits) result = { ...result, gapMm: 0 };
-	for (let i = 0; i < 40 && !checkFit(result).fits; i++) {
-		result = {
-			...result,
-			parts: result.parts.map((part) => {
-				if (part.kind === "text") return { ...part, sizePt: Math.max(LIMITS.textPt.min, round1(part.sizePt * 0.95)) };
-				if (part.kind === "barcode") {
-					return {
-						...part,
-						heightMm: Math.max(LIMITS.blockMm.min, round1(part.heightMm * 0.95)),
-						numberSizePt: round1(part.numberSizePt * 0.95),
-					};
-				}
-				return { ...part, heightMm: Math.max(LIMITS.blockMm.min, round1(part.heightMm * 0.95)) };
-			}),
-		};
-	}
-	return result;
-};
-
-export const importLabel = (
-	path: string,
-	page: { widthMm: number; heightMm: number },
-	items: OdgItem[],
-): ImportedLabel => {
-	const texts = items.flatMap((i) => (i.kind === "text" ? i.lines.map((l) => l.text) : []));
-	const { design, barcode } = toDesign(page, items);
 	return {
+		folderPath: path.split("/").slice(0, -1),
+		sourceFile: path,
 		name: nameFor(path),
 		customer: customerFor(path),
 		kind: kindFor(path),
 		sku: skuFor(path, texts),
 		storage: storageFor(texts),
-		barcode,
-		design,
+		barcode: findBarcode(doc, pictures, texts),
+		design: { layout: "placed", widthMm: doc.page.widthMm, heightMm: doc.page.heightMm, parts },
+		warnings: [...new Set(warnings)],
 	};
 };
-
-const clamp = (n: number, { min, max }: { min: number; max: number }) => Math.min(max, Math.max(min, round1(n)));
-const round1 = (n: number) => Math.round(n * 10) / 10;

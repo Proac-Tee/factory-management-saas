@@ -4,8 +4,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useToast } from "@/components/toast";
 import { checkGtin } from "@/entities/gtin";
-import { checkFit, type DetailsField, type LabelDesign, type LabelDetailsInput, type LabelPart } from "@/entities/label";
+import { checkFit, type DetailsField, isPlaced, type LabelDesign, type LabelDetailsInput, type LabelPart, type StackDesign } from "@/entities/label";
 import { addPart, applyPreset, movePart, newPart, removePart, updatePart } from "@/entities/label-edit";
+import type { PlacedDesign, PlacedPart } from "@/entities/placed";
+import { addPlacedPart, newTextPart, nudgePart, removePlacedPart, updatePlacedPart } from "@/entities/placed-edit";
 import type { EditorView } from "@/use-cases/labels";
 import { saveLabelAction } from "../../actions";
 import { useTooWide } from "./use-too-wide";
@@ -68,19 +70,43 @@ export function useLabelEditor({ label, design: initialDesign, products }: Edito
 		touched();
 	};
 
+	// Stacked labels (made in the app) and placed ones (imported) have their own tools.
+	const stack: StackDesign | null = isPlaced(design) ? null : design;
+	const placedDesign: PlacedDesign | null = isPlaced(design) ? design : null;
+	const newId = () => `p${Date.now().toString(36)}`;
+
 	const parts = {
-		update: (id: string, patch: Partial<LabelPart>) => changeDesign(updatePart(design, id, patch)),
-		move: (id: string, by: -1 | 1) => changeDesign(movePart(design, id, by)),
+		update: (id: string, patch: Partial<LabelPart>) => stack && changeDesign(updatePart(stack, id, patch)),
+		move: (id: string, by: -1 | 1) => stack && changeDesign(movePart(stack, id, by)),
 		remove: (id: string) => {
-			changeDesign(removePart(design, id));
+			if (!stack) return;
+			changeDesign(removePart(stack, id));
 			if (selectedId === id) setSelectedId(null);
 		},
 		add: (kind: LabelPart["kind"]) => {
-			const part = newPart(kind, `p${Date.now().toString(36)}`);
-			changeDesign(addPart(design, part));
+			if (!stack) return;
+			const part = newPart(kind, newId());
+			changeDesign(addPart(stack, part));
 			setSelectedId(part.id);
 		},
 		toggle: (id: string) => setSelectedId((current) => (current === id ? null : id)),
+	};
+
+	const placed = {
+		update: (id: string, patch: Partial<PlacedPart>) => placedDesign && changeDesign(updatePlacedPart(placedDesign, id, patch)),
+		replace: (part: PlacedPart) => placedDesign && changeDesign(updatePlacedPart(placedDesign, part.id, part)),
+		nudge: (id: string, dx: number, dy: number) => placedDesign && changeDesign(nudgePart(placedDesign, id, dx, dy)),
+		remove: (id: string) => {
+			if (!placedDesign) return;
+			changeDesign(removePlacedPart(placedDesign, id));
+			if (selectedId === id) setSelectedId(null);
+		},
+		addText: () => {
+			if (!placedDesign) return;
+			const part = newTextPart(newId());
+			changeDesign(addPlacedPart(placedDesign, part));
+			setSelectedId(part.id);
+		},
 	};
 
 	const changeDetail = <F extends DetailsField>(field: F, value: LabelDetailsInput[F]) => {
@@ -151,16 +177,19 @@ export function useLabelEditor({ label, design: initialDesign, products }: Edito
 		dirty,
 		fieldError,
 		saving,
-		fit: checkFit(design),
-		tooWide: useTooWide(design),
+		stack,
+		placedDesign,
+		fit: stack ? checkFit(stack) : null,
+		tooWide: useTooWide(stack),
 		gtin,
 		previewBarcode: gtin?.ok ? gtin.gtin : null,
 		product,
 		renamesProduct,
 		parts,
+		placed,
 		size: {
 			change: changeDesign,
-			preset: (preset: { widthMm: number; heightMm: number }) => changeDesign(applyPreset(design, preset)),
+			preset: (preset: { widthMm: number; heightMm: number }) => stack && changeDesign(applyPreset(stack, preset)),
 		},
 		changeDetail,
 		save,

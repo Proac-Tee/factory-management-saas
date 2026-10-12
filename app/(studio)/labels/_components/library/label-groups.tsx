@@ -58,7 +58,7 @@ function GroupHeading({ id, title, count }: { id: string; title: string; count: 
 	);
 }
 
-function LabelGrid({
+export function LabelGrid({
 	labels,
 	caption,
 }: {

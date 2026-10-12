@@ -4,10 +4,11 @@
 // scale, print sets it to 1mm.
 
 import type { CSSProperties } from "react";
-import { barsFor } from "@/entities/barcodes";
-import { type FieldValues, fillText, type LabelDesign, MM_PER_PT, TEXT_LINE_HEIGHT } from "@/entities/label";
+import { Barcode } from "./barcode-svg";
+import { PlacedRender } from "./placed-render";
+import { type FieldValues, fillText, isPlaced, textsOf, type LabelDesign, MM_PER_PT, type StackDesign, TEXT_LINE_HEIGHT } from "@/entities/label";
 
-type Props = {
+export type LabelRenderProps = {
 	design: LabelDesign;
 	barcode: string | null;
 	values?: FieldValues;
@@ -18,19 +19,24 @@ type Props = {
 	scale: number | "print" | "fit";
 	/** Outline this part (the one being sized in the editor). */
 	selectedId?: string | null;
+	/** Where a picture comes from; by default the stored copy (/label-images/…). Upload previews use the file itself. */
+	imageSrc?: (hash: string) => string;
 	className?: string;
 };
 
 const mm = (n: number) => `calc(var(--mm) * ${n})`;
 
-export function LabelRender({ design, barcode, values = {}, scale, selectedId, className = "" }: Props) {
+export function LabelRender(props: LabelRenderProps) {
+	return isPlaced(props.design) ? <PlacedRender {...props} design={props.design} /> : <StackRender {...props} design={props.design} />;
+}
+
+/** --mm for a scale: pixels per mm, true size, or fit a square container (container-type: size). */
+export const mmVariable = (scale: LabelRenderProps["scale"], design: { widthMm: number; heightMm: number }) =>
+	scale === "print" ? "1mm" : scale === "fit" ? `calc(100cqmin / ${Math.max(design.widthMm, design.heightMm)})` : `${scale}px`;
+
+function StackRender({ design, barcode, values = {}, scale, selectedId, className = "" }: LabelRenderProps & { design: StackDesign }) {
 	const style = {
-		"--mm":
-			scale === "print"
-				? "1mm"
-				: scale === "fit"
-					? `calc(100cqmin / ${Math.max(design.widthMm, design.heightMm)})`
-					: `${scale}px`,
+		"--mm": mmVariable(scale, design),
 		width: mm(design.widthMm),
 		height: mm(design.heightMm),
 		padding: mm(design.marginMm),
@@ -96,51 +102,7 @@ export function LabelRender({ design, barcode, values = {}, scale, selectedId, c
 	);
 }
 
-/** ITF-14 with its bearer bars top and bottom, or EAN-13, across the usable width. */
-function Barcode({ gtin, heightMm }: { gtin: string | null; heightMm: number }) {
-	if (!gtin) {
-		return (
-			<div
-				className="flex w-full items-center justify-center border-2 border-dashed border-rule px-2 text-center text-graphite"
-				style={{ height: mm(heightMm), fontSize: mm(3) }}
-			>
-				Add the barcode number in Details
-			</div>
-		);
-	}
-	const { bars, width } = barsFor(gtin);
-	const itf = gtin.length === 14;
-	const quiet = itf ? 10 : 9;
-	const total = width + 2 * quiet;
-	return (
-		<svg
-			viewBox={`0 0 ${total} 100`}
-			preserveAspectRatio="none"
-			aria-hidden="true"
-			className="block w-full"
-			style={{ height: mm(heightMm) }}
-		>
-			{itf && (
-				<>
-					<rect x={0} y={0} width={total} height={7} fill="currentColor" />
-					<rect x={0} y={93} width={total} height={7} fill="currentColor" />
-				</>
-			)}
-			{bars.map((bar) => (
-				<rect
-					key={bar.x}
-					x={quiet + bar.x}
-					y={itf ? 7 : 0}
-					width={bar.width}
-					height={itf ? 86 : 100}
-					fill="currentColor"
-				/>
-			))}
-		</svg>
-	);
-}
-
-const labelSummary = (design: LabelDesign, values: FieldValues) => {
-	const texts = design.parts.filter((p) => p.visible && p.kind === "text").map((p) => (p.kind === "text" ? fillText(p.text, values) : ""));
+export const labelSummary = (design: LabelDesign, values: FieldValues) => {
+	const texts = textsOf(design).map((t) => fillText(t, values));
 	return `Label, ${design.widthMm} by ${design.heightMm} mm: ${texts.slice(0, 4).join(", ")}`;
 };

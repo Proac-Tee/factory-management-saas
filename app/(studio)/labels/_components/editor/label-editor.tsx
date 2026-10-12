@@ -9,6 +9,7 @@ import type { EditorView } from "@/use-cases/labels";
 import { DetailsForm } from "./details-form";
 import { EditorPreview } from "./editor-preview";
 import { PartsPanel } from "./parts-panel";
+import { PlacedPanel } from "./placed-panel";
 import { type Tab, useLabelEditor } from "./use-label-editor";
 
 const TABS: [Tab, string][] = [
@@ -85,7 +86,11 @@ export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: 
 					</div>
 
 					{editor.tab === "parts" ? (
-						<PartsPanel editor={editor} canEdit={canEdit} />
+						editor.placedDesign ? (
+							<PlacedPanel editor={editor} design={editor.placedDesign} canEdit={canEdit} />
+						) : (
+							editor.stack && <PartsPanel editor={editor} design={editor.stack} canEdit={canEdit} />
+						)
 					) : (
 						<DetailsForm editor={editor} view={view} />
 					)}

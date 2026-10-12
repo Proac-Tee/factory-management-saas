@@ -6,7 +6,7 @@ import { GROUPINGS, type Grouping, type LibraryQuery, libraryHref } from "@/enti
 export function LibraryControls({ query }: { query: LibraryQuery }) {
 	return (
 		<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-			<div className="flex items-center gap-3">
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
 				<span className="text-sm leading-[18px] font-bold text-graphite">Group by</span>
 				<nav aria-label="Group labels by" className="flex gap-1 rounded-md bg-wash p-1">
 					{(Object.keys(GROUPINGS) as Grouping[]).map((g) => (
@@ -14,7 +14,7 @@ export function LibraryControls({ query }: { query: LibraryQuery }) {
 							key={g}
 							href={libraryHref(query, { group: g })}
 							aria-current={g === query.group ? "true" : undefined}
-							className={`flex h-10 items-center rounded-[6px] px-4 text-base pointer-coarse:h-12 ${
+							className={`flex h-10 flex-1 items-center justify-center rounded-[6px] px-3 text-base sm:flex-none sm:px-4 pointer-coarse:h-12 ${
 								g === query.group ? "bg-ink font-bold text-stock" : "font-medium hover:bg-rule"
 							}`}
 						>

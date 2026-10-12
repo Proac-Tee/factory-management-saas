@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { JwtPayload } from "@supabase/supabase-js";
 import { db } from "./index";
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // Run queries as the signed-in user so Postgres RLS policies apply,
 // the same way they do for requests through the Supabase Data API.

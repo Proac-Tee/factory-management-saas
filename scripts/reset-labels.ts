@@ -1,4 +1,5 @@
-// Deletes every label, product and label check, to start the import again.
+// Deletes every label, product, label check, folder and label picture, to
+// upload the labels again.
 // Accounts, the allowed list and the database structure are kept.
 //
 //   pnpm labels:reset         (shows what would be deleted, deletes nothing)
@@ -17,13 +18,17 @@ const main = async () => {
 	const { hostname, pathname } = new URL(url);
 	const sql = postgres(url, { prepare: false, max: 1, onnotice: () => {} });
 	try {
-		const [counts] = await sql<{ labels: number; products: number; checks: number }[]>`
+		const [counts] = await sql<{ labels: number; products: number; checks: number; folders: number; images: number }[]>`
 			select
 				(select count(*)::int from public.labels) as labels,
 				(select count(*)::int from public.products) as products,
-				(select count(*)::int from public.label_checks) as checks`;
+				(select count(*)::int from public.label_checks) as checks,
+				(select count(*)::int from public.folders) as folders,
+				(select count(*)::int from public.label_images) as images`;
 		console.log(`Database: ${hostname}${pathname}`);
-		console.log(`Would delete ${counts.labels} labels, ${counts.products} products and ${counts.checks} label checks.`);
+		console.log(
+			`Would delete ${counts.labels} labels, ${counts.products} products, ${counts.checks} label checks, ${counts.folders} folders and ${counts.images} pictures.`,
+		);
 		if (!values.yes) {
 			console.log("Nothing deleted. Run again with --yes to delete them.");
 			return;
@@ -32,8 +37,10 @@ const main = async () => {
 			await tx`delete from public.label_checks`;
 			await tx`delete from public.labels`;
 			await tx`delete from public.products`;
+			await tx`delete from public.folders`;
+			await tx`delete from public.label_images`;
 		});
-		console.log("Deleted. Accounts and the allowed list are untouched; import again with pnpm labels:import.");
+		console.log("Deleted. Accounts and the allowed list are untouched; upload the labels again from Labels → Upload.");
 	} finally {
 		await sql.end();
 	}

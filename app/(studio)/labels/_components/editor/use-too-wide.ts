@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
-import { FIELDS, fillText, type LabelDesign, MM_PER_PT, usableWidthMm } from "@/entities/label";
+import { FIELDS, fillText, MM_PER_PT, type StackDesign, usableWidthMm } from "@/entities/label";
 
 const noSubscribe = () => () => {};
 
-/** Ids of lines wider than the label, measured with the label's own font. */
-export function useTooWide(design: LabelDesign): Set<string> {
+/** Ids of lines wider than a stacked label, measured with the label's own font. */
+export function useTooWide(design: StackDesign | null): Set<string> {
 	// The page font (next/font gives it a generated name); none on the server.
 	const font = useSyncExternalStore(
 		noSubscribe,
@@ -15,7 +15,7 @@ export function useTooWide(design: LabelDesign): Set<string> {
 	);
 	return useMemo(() => {
 		const wide = new Set<string>();
-		if (!font || typeof document === "undefined") return wide;
+		if (!design || !font || typeof document === "undefined") return wide;
 		const ctx = document.createElement("canvas").getContext("2d");
 		if (!ctx) return wide;
 		const usable = usableWidthMm(design);

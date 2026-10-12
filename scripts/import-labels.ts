@@ -259,8 +259,6 @@ const main = async () => {
 	let skipped = 0;
 	const problems: string[] = [];
 	const missing = new Map<Unread, string[]>();
-	/** barcode → the SKUs of labels carrying it, to catch one number on different products. */
-	const skusByBarcode = new Map<string, Map<string, string>>();
 
 	for (const file of files) {
 		const source = relative(root, file);
@@ -271,11 +269,6 @@ const main = async () => {
 			if (!label.barcode && unread) {
 				const example = unread.found ? `${source}  (read: ${unread.found})` : source;
 				missing.set(unread.reason, [...(missing.get(unread.reason) ?? []), example]);
-			}
-			if (label.barcode && label.sku) {
-				const skus = skusByBarcode.get(label.barcode) ?? new Map<string, string>();
-				skus.set(label.sku, source);
-				skusByBarcode.set(label.barcode, skus);
 			}
 			const design = parseDesign(label.design);
 			if (!design.ok) throw new Error(design.message);
@@ -330,15 +323,6 @@ const main = async () => {
 	for (const [reason, files] of missing) {
 		console.log(`  ${files.length}: ${reason}. For example:`);
 		for (const f of files.slice(0, 3)) console.log(`    ${f}`);
-	}
-	const shared = [...skusByBarcode].filter(([, skus]) => skus.size > 1);
-	if (shared.length) {
-		console.log(
-			`\n${shared.length === 1 ? "1 barcode number is" : `${shared.length} barcode numbers are`} on labels for different SKUs. Check them against your GS1 list:`,
-		);
-		for (const [barcode, skus] of shared) {
-			console.log(`  ${barcode}: SKUs ${[...skus.keys()].join(", ")}`);
-		}
 	}
 	if (problems.length) {
 		console.log(`\n${problems.length} couldn't be read:`);

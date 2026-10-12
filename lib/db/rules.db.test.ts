@@ -159,4 +159,35 @@ describe.skipIf(!sql)("database rules", () => {
 			).toMatch(/labels_sku_format/);
 		});
 	});
+	it("lets editors add and rename products in their own name, and operators only read them", async () => {
+		await inRollback(async (tx) => {
+			const p = await people(tx, { editor: "editor", operator: "operator" });
+
+			await as(tx, p.editor, p["editor:email"]);
+			await tx`insert into public.products (sku, name, created_by, updated_by) values ('TEST-1', 'Test Biltong', ${p.editor}, ${p.editor})`;
+			const [label] = await tx`insert into public.labels (name, customer, kind, sku, design, created_by, updated_by)
+				values ('Test SRP', 'Ember', 'srp', 'TEST-1', ${tx.json(newDesign())}, ${p.editor}, ${p.editor}) returning id`;
+			const renamed = await tx`update public.products set name = 'Test Biltong 15 × 45g', updated_by = ${p.editor} where sku = 'TEST-1' returning name`;
+			expect(renamed).toEqual([{ name: "Test Biltong 15 × 45g" }]);
+			const skuChange = await errorOf(tx, (sp) => sp`update public.products set sku = 'TEST-2' where sku = 'TEST-1'`);
+			expect(skuChange).toMatch(/permission denied/);
+			await asOwner(tx);
+
+			await as(tx, p.operator, p["operator:email"]);
+			const [seen] = await tx`select p.name from public.labels l join public.products p using (sku) where l.id = ${label.id}`;
+			expect(seen).toEqual({ name: "Test Biltong 15 × 45g" });
+			const refused = await errorOf(tx, (sp) => sp`insert into public.products (sku, name, created_by, updated_by) values ('TEST-3', 'Nope', ${p.operator}, ${p.operator})`);
+			expect(refused).toMatch(/row-level security/);
+			const changed = await tx`update public.products set name = 'Hacked', updated_by = ${p.operator} where sku = 'TEST-1' returning sku`;
+			expect(changed).toHaveLength(0);
+		});
+	});
+
+	it("refuses a label for a product that doesn't exist", async () => {
+		await inRollback(async (tx) => {
+			expect(
+				await errorOf(tx, (sp) => sp`insert into public.labels (name, customer, kind, design, sku) values ('X', 'Ember', 'srp', ${tx.json(newDesign())}, 'NO-SUCH')`),
+			).toMatch(/labels_sku_products_sku_fk/);
+		});
+	});
 });

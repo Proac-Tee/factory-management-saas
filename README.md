@@ -57,15 +57,36 @@ http://127.0.0.1:55324.
 
 ## Where things are
 
-- `entities/` — the rules, no framework: label layout and fit, GTIN checks,
-  ITF-14/EAN-13 bar patterns, roles, the `.odg` import rules. All tested.
+Each layer only calls the one below it:
+
+- `entities/` — the rules, no framework: label layout and fit, design edits,
+  library grouping, GTIN checks, ITF-14/EAN-13 bar patterns, roles, account
+  forms, the `.odg` import rules. Input is checked with **Zod** schemas that
+  live here next to the rule they enforce (`designSchema`,
+  `labelDetailsSchema`, `emailSchema`, …). All tested.
 - `data-access/` — Drizzle queries. User-facing ones run through `withRls`
   so the database policies apply.
-- `use-cases/` — what the app does (save a label, check a printed label,
-  manage access): permission check, entity rules, then data-access.
-- `app/` — screens. `(auth)` sign-in, `(studio)` labels, scan, access.
-- `components/label-render.tsx` — draws a label from its design; the library,
-  editor preview and print all use it, so what you see is what prints.
+- `use-cases/` — what the app does, for pages and server actions: check the
+  person may do it, parse the input with Zod (server actions are public
+  endpoints, so their input is `unknown` until parsed), apply the entity
+  rules, then read or save through data-access.
+- `app/` — screens. Pages only call a use-case and render; server actions
+  only call a use-case and refresh. `(auth)` sign-in, `(studio)` labels,
+  scan, access. Screen parts live next to their route in `_components/`
+  (e.g. the label editor is split into a state hook and small panels).
+- `components/` — shared UI: `label-render.tsx` draws a label from its
+  design (library, editor preview and print all use it, so what you see is
+  what prints), `scaled-label.tsx`, form `controls.tsx`, `ui.tsx`.
+- `lib/` — sign-in (`auth.ts`), database client, env checks, date formats.
+
+## How the library is grouped
+
+Customer → product → type. Labels for the same product share its SKU, so
+an SRP, shipper and pallet label sit side by side under one product name
+(the `products` table). Labels with no SKU (hold, waste, address…) go under
+the customer's **General** group. Editors set the customer, SKU, product
+name and type on the label's **Details and group** tab; renaming a product
+there renames it on all its labels. **Type** and **Size** give flat views.
 
 ## Printing
 

@@ -2,14 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { LabelDetailsInput } from "@/entities/label";
 import { type SaveResult, saveLabel, setArchived } from "@/use-cases/labels";
 
-export async function saveLabelAction(input: {
-	id: string | null;
-	details: LabelDetailsInput;
-	design: unknown;
-}): Promise<SaveResult> {
+// Thin wrappers: the use-cases check permission and parse the input. These
+// only refresh the pages that show what changed.
+
+export async function saveLabelAction(input: { id: string | null; details: unknown; design: unknown }): Promise<SaveResult> {
 	const result = await saveLabel(input);
 	if (!result.ok) return result;
 	revalidatePath("/labels");
@@ -19,10 +17,10 @@ export async function saveLabelAction(input: {
 }
 
 export async function archiveLabelAction(id: string, archived: boolean): Promise<{ ok: boolean }> {
-	const ok = await setArchived(id, archived);
-	if (ok) {
+	const result = await setArchived({ id, archived });
+	if (result.ok) {
 		revalidatePath("/labels");
 		revalidatePath(`/labels/${id}`);
 	}
-	return { ok };
+	return { ok: result.ok };
 }

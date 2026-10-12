@@ -1,6 +1,8 @@
 // GS1 barcode numbers. Case labels carry a GTIN-14 printed as ITF-14
 // (e.g. 15060534671000); pouches carry a GTIN-13 printed as EAN-13.
 
+import { z } from "zod";
+
 export type BarcodeKind = "itf14" | "ean13";
 
 export const BARCODE_KIND_NAMES: Record<BarcodeKind, string> = {
@@ -49,6 +51,21 @@ export const checkGtin = (input: string): GtinCheck => {
 	}
 	return { ok: true, gtin, kind: gtin.length === 14 ? "itf14" : "ean13" };
 };
+
+const toGtin = (input: string, ctx: z.RefinementCtx) => {
+	const check = checkGtin(input);
+	if (check.ok) return check.gtin;
+	ctx.addIssue({ code: "custom", message: check.message });
+	return z.NEVER;
+};
+
+/** A barcode number as Zod: checks it with checkGtin and gives back the digits. */
+export const gtinSchema = z.string().transform(toGtin);
+
+/** An optional barcode number: empty means "no barcode" (null). */
+export const optionalGtinSchema = z
+	.string()
+	.transform((input, ctx) => (input.trim() === "" ? null : toGtin(input, ctx)));
 
 /**
  * The same product's numbers match across pack levels: a case GTIN-14 is the

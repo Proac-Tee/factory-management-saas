@@ -6,8 +6,9 @@ import { useState, useTransition } from "react";
 import { AlertTriangleIcon, CheckIcon, ChevronRightIcon, KeyboardIcon, PrinterIcon, ScanIcon } from "@/components/icons";
 import { ErrorLine, fieldClass, PageHeader, primaryButton } from "@/components/ui";
 import { BARCODE_KIND_NAMES, checkGtin } from "@/entities/gtin";
-import type { CheckResult } from "@/use-cases/labels";
-import { checkLabelAction, type FindResult, findLabelsAction } from "./actions";
+import { time } from "@/lib/format";
+import type { CheckResult, FindResult } from "@/use-cases/labels";
+import { checkLabelAction, findLabelsAction } from "./actions";
 
 // The decoder is browser-only (camera + WebAssembly).
 const CameraScanner = dynamic(() => import("@/components/camera-scanner").then((m) => m.CameraScanner), {
@@ -202,7 +203,7 @@ function AgainButton({ onAgain }: { onAgain: () => void }) {
 /** Full-screen result, coloured by status (Paper: "Phone – Check: label matches"). */
 function CheckOutcome({ result, label, onNext }: { result: Extract<CheckResult, { ok: true }>; label: CheckLabel; onNext: () => void }) {
 	const pass = result.result === "pass";
-	const time = new Date(result.checkedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
+	const checkedAt = time(result.checkedAt);
 	const scannedKind = checkGtin(result.scanned);
 	return (
 		<div className="flex flex-1 flex-col">
@@ -226,7 +227,7 @@ function CheckOutcome({ result, label, onNext }: { result: Extract<CheckResult, 
 							["Label should carry", result.expected],
 							["Barcode type", scannedKind.ok ? BARCODE_KIND_NAMES[scannedKind.kind] : "Not a valid product barcode"],
 							["Label", label.name],
-							["Checked", `${time} by ${result.checkedBy}`],
+							["Checked", `${checkedAt} by ${result.checkedBy}`],
 						] as const
 					).map(([name, value]) => (
 						<div key={name} className="flex min-h-[52px] items-center justify-between gap-4 border-b border-rule py-2">

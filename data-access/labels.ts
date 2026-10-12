@@ -1,10 +1,10 @@
 import "server-only";
 import type { JwtPayload } from "@supabase/supabase-js";
-import { and, asc, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { LabelDesign, LabelDetails, LabelKind } from "@/entities/label";
 import { withRls } from "@/lib/db/rls";
-import { labelChecks, labels, profiles } from "@/lib/db/schema";
+import { labelChecks, labels, products, profiles } from "@/lib/db/schema";
 
 // Every query here runs as the signed-in person (withRls), so the policies in
 // lib/db/schema.ts decide what they can see and change.
@@ -15,6 +15,7 @@ export type LabelSummary = {
 	customer: string;
 	kind: LabelKind;
 	sku: string | null;
+	productName: string | null;
 	storage: "ambient" | "chilled" | null;
 	barcode: string | null;
 	design: LabelDesign;
@@ -27,6 +28,7 @@ const summary = {
 	customer: labels.customer,
 	kind: labels.kind,
 	sku: labels.sku,
+	productName: products.name,
 	storage: labels.storage,
 	barcode: labels.barcode,
 	design: labels.design,
@@ -38,13 +40,14 @@ const toSummary = (row: { updatedAt: Date } & Omit<LabelSummary, "updatedAt">): 
 	updatedAt: row.updatedAt.toISOString(),
 });
 
-/** Labels in use, optionally narrowed by a search over name, SKU and barcode. */
+/** Labels in use, optionally narrowed by a search over name, customer, product, SKU and barcode. */
 export const listLabels = (claims: JwtPayload, { query, kind }: { query?: string; kind?: LabelKind } = {}) =>
 	withRls(claims, async (tx) => {
 		const q = query?.trim();
 		const rows = await tx
 			.select(summary)
 			.from(labels)
+			.leftJoin(products, eq(products.sku, labels.sku))
 			.where(
 				and(
 					isNull(labels.archivedAt),
@@ -54,6 +57,7 @@ export const listLabels = (claims: JwtPayload, { query, kind }: { query?: string
 								ilike(labels.name, `%${q}%`),
 								ilike(labels.sku, `%${q}%`),
 								ilike(labels.customer, `%${q}%`),
+								ilike(products.name, `%${q}%`),
 								eq(labels.barcode, q.replace(/\s+/g, "")),
 							)
 						: undefined,
@@ -72,6 +76,7 @@ export const getLabel = (claims: JwtPayload, id: string) =>
 		const [row] = await tx
 			.select({ ...summary, updatedByName: editor.fullName, archivedAt: labels.archivedAt })
 			.from(labels)
+			.leftJoin(products, eq(products.sku, labels.sku))
 			.leftJoin(editor, eq(editor.id, labels.updatedBy))
 			.where(eq(labels.id, id));
 		if (!row) return null;
@@ -89,30 +94,62 @@ export const listCustomers = (claims: JwtPayload) =>
 		return rows.map((r) => r.customer);
 	});
 
-export const createLabel = (claims: JwtPayload, details: LabelDetails, design: LabelDesign) =>
-	withRls(claims, async (tx) => {
+export type ProductOption = { sku: string; name: string; labelCount: number };
+
+/** Every product, with how many labels in use carry it (for the editor). */
+export const listProducts = (claims: JwtPayload) =>
+	withRls(claims, async (tx): Promise<ProductOption[]> =>
+		tx
+			.select({ sku: products.sku, name: products.name, labelCount: count(labels.id) })
+			.from(products)
+			.leftJoin(labels, and(eq(labels.sku, products.sku), isNull(labels.archivedAt)))
+			.groupBy(products.sku)
+			.orderBy(asc(products.name)),
+	);
+
+/**
+ * Creates or updates a label, and its product in the same transaction: a new
+ * SKU adds the product, a changed name renames it for all its labels.
+ * Returns the label's id, or null if the label to update wasn't found.
+ */
+export const saveLabel = (
+	claims: JwtPayload,
+	id: string | null,
+	{ productName, ...details }: LabelDetails,
+	design: LabelDesign,
+) =>
+	withRls(claims, async (tx): Promise<string | null> => {
+		if (details.sku && productName) {
+			await tx
+				.insert(products)
+				.values({ sku: details.sku, name: productName, createdBy: claims.sub, updatedBy: claims.sub })
+				.onConflictDoUpdate({
+					target: products.sku,
+					set: { name: productName, updatedBy: claims.sub, updatedAt: sql`now()` },
+					setWhere: ne(products.name, productName),
+				});
+		}
+		if (id === null) {
+			const [row] = await tx
+				.insert(labels)
+				.values({ ...details, design, createdBy: claims.sub, updatedBy: claims.sub })
+				.returning({ id: labels.id });
+			return row.id;
+		}
 		const [row] = await tx
-			.insert(labels)
-			.values({ ...details, design, createdBy: claims.sub, updatedBy: claims.sub })
+			.update(labels)
+			.set({ ...details, design, updatedBy: claims.sub, updatedAt: sql`now()` })
+			.where(eq(labels.id, id))
 			.returning({ id: labels.id });
-		return row.id;
+		return row?.id ?? null;
 	});
 
-export const updateLabel = (
-	claims: JwtPayload,
-	id: string,
-	change: { details?: LabelDetails; design?: LabelDesign; archived?: boolean },
-) =>
+/** Takes a label out of the library, or puts it back. */
+export const setLabelArchived = (claims: JwtPayload, id: string, archived: boolean) =>
 	withRls(claims, async (tx) => {
 		const rows = await tx
 			.update(labels)
-			.set({
-				...change.details,
-				...(change.design ? { design: change.design } : {}),
-				...(change.archived === undefined ? {} : { archivedAt: change.archived ? sql`now()` : null }),
-				updatedBy: claims.sub,
-				updatedAt: sql`now()`,
-			})
+			.set({ archivedAt: archived ? sql`now()` : null, updatedBy: claims.sub, updatedAt: sql`now()` })
 			.where(eq(labels.id, id))
 			.returning({ id: labels.id });
 		return rows.length > 0;
@@ -129,6 +166,7 @@ export const findByBarcode = (claims: JwtPayload, gtin: string) =>
 		const rows = await tx
 			.select(summary)
 			.from(labels)
+			.leftJoin(products, eq(products.sku, labels.sku))
 			.where(and(isNull(labels.archivedAt), or(eq(labels.barcode, gtin), sql`${itemOf} = ${item}`)))
 			.orderBy(desc(sql`${labels.barcode} = ${gtin}`), asc(labels.customer), asc(labels.name));
 		return rows.map(toSummary);

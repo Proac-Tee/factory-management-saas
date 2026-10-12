@@ -4,29 +4,27 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAllowed } from "@/data-access/members";
-import { checkEmail } from "@/entities/roles";
+import { newPasswordSchema, resetRequestSchema, signInSchema, signUpSchema } from "@/entities/account";
+import { firstIssue, formFields } from "@/entities/validation";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState =
 	| { error?: string; message?: string; field?: "email" | "password" | "name"; email?: string }
 	| undefined;
 
-const MIN_PASSWORD = 8;
+type Field = "email" | "password" | "name";
 
-const readCredentials = (formData: FormData) => {
-	const email = checkEmail(String(formData.get("email") ?? ""));
-	const password = String(formData.get("password") ?? "");
-	if (!email.ok) return { error: email.message, field: "email" as const };
-	if (password === "") return { error: "Enter your password.", field: "password" as const, email: email.email };
-	if (password.length < MIN_PASSWORD) {
-		return { error: `Passwords are at least ${MIN_PASSWORD} characters.`, field: "password" as const, email: email.email };
-	}
-	return { email: email.email, password };
+/** The first problem in a form, keeping the email typed so the form can show it again. */
+const failure = (error: Parameters<typeof firstIssue>[0], form: Record<string, string>): AuthState => {
+	const { field, message } = firstIssue<string>(error);
+	return { error: message, field: (field === "fullName" ? "name" : field) as Field | undefined, email: form.email?.trim() };
 };
 
 export async function login(_: AuthState, formData: FormData): Promise<AuthState> {
-	const credentials = readCredentials(formData);
-	if ("error" in credentials) return credentials;
+	const form = formFields(formData);
+	const parsed = signInSchema.safeParse(form);
+	if (!parsed.success) return failure(parsed.error, form);
+	const credentials = parsed.data;
 
 	const supabase = await createClient();
 	const { error } = await supabase.auth.signInWithPassword(credentials);
@@ -43,10 +41,10 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
 }
 
 export async function signup(_: AuthState, formData: FormData): Promise<AuthState> {
-	const credentials = readCredentials(formData);
-	if ("error" in credentials) return credentials;
-	const fullName = String(formData.get("fullName") ?? "").trim();
-	if (fullName === "") return { error: "Enter your name, so labels you edit show who changed them.", field: "name", email: credentials.email };
+	const form = formFields(formData);
+	const parsed = signUpSchema.safeParse(form);
+	if (!parsed.success) return failure(parsed.error, form);
+	const { fullName, ...credentials } = parsed.data;
 
 	// The database refuses anyone not on the list too; this is just a clearer message.
 	if (!(await isAllowed(credentials.email))) {
@@ -84,22 +82,24 @@ export async function signup(_: AuthState, formData: FormData): Promise<AuthStat
 }
 
 export async function requestReset(_: AuthState, formData: FormData): Promise<AuthState> {
-	const email = checkEmail(String(formData.get("email") ?? ""));
-	if (!email.ok) return { error: email.message, field: "email" };
+	const form = formFields(formData);
+	const parsed = resetRequestSchema.safeParse(form);
+	if (!parsed.success) return failure(parsed.error, form);
+	const { email } = parsed.data;
 	const origin = (await headers()).get("origin");
 	const supabase = await createClient();
-	await supabase.auth.resetPasswordForEmail(email.email, {
+	await supabase.auth.resetPasswordForEmail(email, {
 		redirectTo: `${origin}/auth/confirm?next=/reset-password`,
 	});
 	// Same answer either way, so the form doesn't reveal who has an account.
-	return { message: `If ${email.email} has an account, a reset link is on its way. It works for an hour.` };
+	return { message: `If ${email} has an account, a reset link is on its way. It works for an hour.` };
 }
 
 export async function setNewPassword(_: AuthState, formData: FormData): Promise<AuthState> {
-	const password = String(formData.get("password") ?? "");
-	if (password.length < MIN_PASSWORD) {
-		return { error: `Use at least ${MIN_PASSWORD} characters.`, field: "password" };
-	}
+	const form = formFields(formData);
+	const parsed = newPasswordSchema.safeParse(form);
+	if (!parsed.success) return failure(parsed.error, form);
+	const { password } = parsed.data;
 	const supabase = await createClient();
 	const { error } = await supabase.auth.updateUser({ password });
 	if (error) return { error: "The reset link has expired. Ask for a new one.", field: "password" };

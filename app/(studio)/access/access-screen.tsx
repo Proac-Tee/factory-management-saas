@@ -4,19 +4,10 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { Field } from "@/components/field";
 import { PlusIcon, XIcon } from "@/components/icons";
 import { ErrorLine, labelClass, PageHeader, panelFieldClass, primaryButton, SavedLine } from "@/components/ui";
-import type { AccessRow } from "@/data-access/members";
 import { ACTION_NAMES, ACTIONS, can, ROLE_NAMES, ROLES, type Role } from "@/entities/roles";
-import type { AccessResult } from "@/use-cases/access";
+import { whenShort } from "@/lib/format";
+import type { AccessResult, AccessRow } from "@/use-cases/access";
 import { allowEmailAction, changeRoleAction, removeAccessAction } from "./actions";
-
-const when = (iso: string | null) => {
-	if (!iso) return null;
-	const d = new Date(iso);
-	const sameDay = d.toDateString() === new Date().toDateString();
-	return sameDay
-		? `today ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}`
-		: d.toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "2-digit" }).replaceAll("/", ".");
-};
 
 /** The allowed list and roles (Paper: "Desktop – People and access"). */
 export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: string }) {
@@ -73,7 +64,7 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 					<ul>
 						{rows.map((row) => {
 							const isSelected = row.email === selected;
-							const status = row.signedUp ? (row.lastSignInAt ? `Signed in ${when(row.lastSignInAt)}` : "Signed up") : "Waiting";
+							const status = row.signedUp ? (row.lastSignInAt ? `Signed in ${whenShort(row.lastSignInAt)}` : "Signed up") : "Waiting";
 							return (
 								<li key={row.email} className="border-b border-rule">
 									<button

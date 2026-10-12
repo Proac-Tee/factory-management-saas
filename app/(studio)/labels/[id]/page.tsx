@@ -1,15 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { getLabel, listCustomers } from "@/data-access/labels";
-import { parseDesign } from "@/entities/label";
-import { can } from "@/entities/roles";
-import { requireMember } from "@/lib/auth";
-import { LabelEditor } from "../label-editor";
+import { getLabelEditor } from "@/use-cases/labels";
+import { LabelEditor } from "../_components/editor/label-editor";
 
 export const metadata: Metadata = { title: "Label" };
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function LabelPage({ params, searchParams }: PageProps<"/labels/[id]">) {
 	return (
@@ -19,29 +14,9 @@ export default function LabelPage({ params, searchParams }: PageProps<"/labels/[
 	);
 }
 
-async function Label({
-	params,
-	searchParams,
-}: {
-	params: PageProps<"/labels/[id]">["params"];
-	searchParams: PageProps<"/labels/[id]">["searchParams"];
-}) {
-	const member = await requireMember("use-labels");
+async function Label({ params, searchParams }: Pick<PageProps<"/labels/[id]">, "params" | "searchParams">) {
 	const [{ id }, { saved }] = await Promise.all([params, searchParams]);
-	if (!UUID.test(id)) notFound();
-	const [label, customers] = await Promise.all([getLabel(member.claims, id), listCustomers(member.claims)]);
-	if (!label) notFound();
-	const design = parseDesign(label.design);
-	if (!design.ok) throw new Error(`Label ${id} has a broken layout: ${design.message}`);
-
-	return (
-		<LabelEditor
-			key={label.id}
-			label={label}
-			design={design.design}
-			customers={customers}
-			canEdit={can(member.role, "edit-labels")}
-			justSaved={saved === "new"}
-		/>
-	);
+	const view = await getLabelEditor(id);
+	if (!view) notFound();
+	return <LabelEditor key={view.label?.id} view={view} justSaved={saved === "new"} />;
 }

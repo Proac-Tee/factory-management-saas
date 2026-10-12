@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { listCustomers } from "@/data-access/labels";
-import { newDesign } from "@/entities/label";
-import { requireMember } from "@/lib/auth";
-import { LabelEditor } from "../label-editor";
+import { getNewLabelEditor } from "@/use-cases/labels";
+import { LabelEditor } from "../_components/editor/label-editor";
 
 export const metadata: Metadata = { title: "New label" };
 
@@ -16,7 +14,5 @@ export default function NewLabelPage() {
 }
 
 async function NewLabel() {
-	const member = await requireMember("edit-labels");
-	const customers = await listCustomers(member.claims);
-	return <LabelEditor label={null} design={newDesign()} customers={customers} canEdit justSaved={false} />;
+	return <LabelEditor view={await getNewLabelEditor()} justSaved={false} />;
 }

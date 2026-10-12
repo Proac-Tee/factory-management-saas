@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Field } from "@/components/field";
 import { ArrowLeftIcon, MinusIcon, PlusIcon, PrinterIcon, ScanIcon } from "@/components/icons";
 import { LabelRender } from "@/components/label-render";
+import { ScaledLabel } from "@/components/scaled-label";
 import { ErrorLine, outlineButton, PageHeader, primaryButton } from "@/components/ui";
-import type { LabelFull } from "@/data-access/labels";
+import type { LabelFull } from "@/use-cases/labels";
 import { FIELDS, type FieldKey, type FieldValues, KIND_NAMES, type LabelDesign } from "@/entities/label";
 
 const MAX_COPIES = 200;
@@ -139,23 +140,9 @@ export function PrintScreen({ label, design, fields }: { label: LabelFull; desig
 }
 
 function Preview({ design, barcode, values }: { design: LabelDesign; barcode: string | null; values: FieldValues }) {
-	const [width, setWidth] = useState(0);
-	const measure = useCallback((node: HTMLDivElement | null) => {
-		if (!node) return;
-		const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
-		observer.observe(node);
-		return () => observer.disconnect();
-	}, []);
-	const scale = width > 0 ? Math.min(width / design.widthMm, 560 / design.heightMm, 6) : 0;
 	return (
 		<section aria-label="Preview" className="flex flex-col items-center gap-4 border-b border-rule bg-wash px-4 py-6 md:px-10 tablet:flex-1 tablet:border-b-0 tablet:border-l tablet:py-10">
-			<div ref={measure} className="flex w-full max-w-[600px] justify-center">
-				{scale > 0 && (
-					<div className="border border-graphite">
-						<LabelRender design={design} barcode={barcode} values={values} scale={scale} />
-					</div>
-				)}
-			</div>
+			<ScaledLabel design={design} barcode={barcode} values={values} maxScale={6} minHeightPx={560} maxHeightPx={560} className="max-w-[600px]" />
 			<p className="text-center text-sm leading-5 text-graphite">What prints, to scale. Empty fields show an example until you fill them in.</p>
 		</section>
 	);

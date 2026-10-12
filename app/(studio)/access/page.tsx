@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { listAccess } from "@/data-access/members";
-import { requireMember } from "@/lib/auth";
+import { getAccess } from "@/use-cases/access";
 import { AccessScreen } from "./access-screen";
 
 export const metadata: Metadata = { title: "People and access" };
@@ -15,6 +14,6 @@ export default function AccessPage() {
 }
 
 async function Access() {
-	const admin = await requireMember("manage-access");
-	return <AccessScreen rows={await listAccess()} myEmail={admin.email} />;
+	const { rows, myEmail } = await getAccess();
+	return <AccessScreen rows={rows} myEmail={myEmail} />;
 }

@@ -1,53 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ember Factory OS — label studio
 
-## Getting Started
+Edit, group, print and scan the Ember case labels. Next.js (App Router) on
+Supabase (Postgres, Auth) with Drizzle. Designs live in the Paper file
+"Ember – Factory OS", page "v3 – Label studio".
 
-First, run the development server:
+## Who can do what
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Sign-in is email and password. Only emails on the **allowed list** can create
+an account; the list also holds each person's role, and taking an email off
+the list removes their access straight away.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Role     | Find, scan, print | Edit labels, sizes, groups | Allow emails, change roles |
+| -------- | ----------------- | -------------------------- | -------------------------- |
+| Operator | Yes               | No                         | No                         |
+| Editor   | Yes               | Yes                        | No                         |
+| Admin    | Yes               | Yes                        | Yes                        |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The same rules are enforced twice: in the app (`entities/roles.ts`,
+`lib/auth.ts`) and in Postgres row level security (`lib/db/schema.ts`,
+`drizzle/0002_*` and `0004_*`). `pnpm test:db` checks the database side.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Set up
 
-## Supabase + Drizzle setup
+1. `pnpm install`
+2. Copy `.env.example` to `.env.local` and fill it in. For `DATABASE_URL` use
+   the **transaction pooler** URL (Supabase → Connect → ORMs → Drizzle, port
+   6543); the direct `db.<ref>.supabase.co` host is IPv6-only and won't
+   connect from most networks.
+3. `pnpm db:migrate`
+4. Add the first admin: `pnpm access:allow --email you@example.com --role admin`,
+   then open the app and choose **Create your password**.
+5. Import the LibreOffice labels (safe to rerun; `--replace` re-imports):
+   `pnpm labels:import "/path/to/Label Designs"`
+6. In Supabase Auth → URL Configuration, add `<your site>/auth/confirm` to the
+   redirect URLs (password reset and email confirmation links land there).
 
-1. Copy `.env.example` to `.env.local` and fill in the values from your Supabase project
-   (API keys for the `NEXT_PUBLIC_*` vars; **Connect → ORMs → Drizzle** for `DATABASE_URL`).
-2. Apply migrations: `pnpm db:migrate`.
-3. In Supabase **Auth → URL Configuration**, add `http://localhost:3000/auth/confirm`
-   (and your production URL) to the redirect allow list.
+### Local development
 
-Schema changes: edit `lib/db/schema.ts`, then run `pnpm db:generate` and `pnpm db:migrate`.
-For SQL Drizzle can't express (triggers, functions), use `pnpm db:generate --custom --name <name>`.
+`supabase start` runs a local Supabase on ports 553xx (see
+`supabase/config.toml`), so it can sit next to other local stacks.
+`.env.development.local` points `next dev` at it and wins over `.env.local`.
+Then `pnpm dev --port 3001`. Emails (password resets) arrive in Mailpit at
+http://127.0.0.1:55324.
 
-Querying data:
+## Scripts
 
-- `withRls(claims, (tx) => ...)` from `lib/db/rls.ts` runs as the signed-in user, so RLS policies apply. Use it for user-facing queries.
-- `db` from `lib/db` connects as `postgres` and **bypasses RLS**. Use it only for trusted server-side work.
-- Get the current user with `getCurrentUser()` from `lib/auth.ts`. It verifies the JWT and redirects to `/login` when signed out.
+| Script                     | What it does                                         |
+| -------------------------- | ---------------------------------------------------- |
+| `pnpm dev`                 | The app                                              |
+| `pnpm test`                | Unit tests (label rules, barcodes, import, roles)    |
+| `pnpm test:db`             | Database rules against the local Supabase            |
+| `pnpm db:generate`         | A migration from `lib/db/schema.ts`                  |
+| `pnpm db:migrate`          | Apply migrations                                     |
+| `pnpm access:allow`        | Put an email on the allowed list with a role         |
+| `pnpm labels:import <dir>` | Import `.odg` labels (`--dry-run` to preview)        |
 
-## Learn More
+## Where things are
 
-To learn more about Next.js, take a look at the following resources:
+- `entities/` — the rules, no framework: label layout and fit, GTIN checks,
+  ITF-14/EAN-13 bar patterns, roles, the `.odg` import rules. All tested.
+- `data-access/` — Drizzle queries. User-facing ones run through `withRls`
+  so the database policies apply.
+- `use-cases/` — what the app does (save a label, check a printed label,
+  manage access): permission check, entity rules, then data-access.
+- `app/` — screens. `(auth)` sign-in, `(studio)` labels, scan, access.
+- `components/label-render.tsx` — draws a label from its design; the library,
+  editor preview and print all use it, so what you see is what prints.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Printing
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The print screen sets the page to the label's size (`@page`) and prints
+through the browser to the PC's label printer driver. Set the printer's
+paper size to the label size (e.g. 100 × 100 mm, no margins) once.
 
-## Deploy on Vercel
+## Scanning
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The phone camera reads case (ITF-14) and pouch (EAN-13) barcodes with
+`barcode-detector` (ZXing in WebAssembly). The decoder is served from
+`public/vendor/zxing_reader.wasm`; after upgrading `barcode-detector`, copy
+the new `zxing_reader.wasm` from `node_modules/zxing-wasm/dist/reader/`.
+Cameras only work on HTTPS (or localhost).

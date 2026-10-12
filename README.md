@@ -39,7 +39,10 @@ The same rules are enforced twice: in the app (`entities/roles.ts`,
 
 `supabase start` runs a local Supabase on ports 553xx (see
 `supabase/config.toml`), so it can sit next to other local stacks.
-`.env.development.local` points `next dev` at it and wins over `.env.local`.
+`.env.development.local` points `next dev` at it and wins over `.env.local`,
+for the app, the scripts and `pnpm db:migrate` alike. To migrate the cloud
+database from your machine, name it in the shell, which wins over both:
+`DATABASE_URL="<pooler url>" pnpm db:migrate`.
 Then `pnpm dev --port 3001`. Emails (password resets) arrive in Mailpit at
 http://127.0.0.1:55324.
 

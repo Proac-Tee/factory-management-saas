@@ -1,12 +1,8 @@
 import "server-only";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { databaseUrl } from "../env";
 import * as schema from "./schema";
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-	throw new Error("Missing env var DATABASE_URL (see .env.example).");
-}
 
 // Reuse one pool across dev hot reloads instead of leaking connections.
 const globalForDb = globalThis as unknown as {
@@ -15,7 +11,7 @@ const globalForDb = globalThis as unknown as {
 
 const client =
 	globalForDb.pgClient ??
-	postgres(databaseUrl, {
+	postgres(databaseUrl(), {
 		// Supabase's transaction pooler (port 6543) doesn't support prepared statements.
 		prepare: false,
 	});

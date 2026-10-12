@@ -3,7 +3,9 @@
 // barcode in millimetres. Text can hold fields ({batch}, {bbe}, {qty}) that are
 // filled in when the label is printed.
 
-import { checkGtin } from "./gtin";
+import { z } from "zod";
+import { optionalGtinSchema } from "./gtin";
+import { firstIssue, rangeSchema, tidyText } from "./validation";
 
 export const MM_PER_PT = 25.4 / 72;
 /** Line height of label text, as a multiple of its size. */
@@ -55,36 +57,95 @@ export const LIMITS = {
 	textLength: 120,
 } as const;
 
-export type Align = "left" | "center" | "right";
-export type Weight = 400 | 700 | 900;
+// ─── Layout ──────────────────────────────────────────────────────────────────
+// A design comes from the editor or from the database (jsonb), so it is
+// parsed before it is saved or drawn: a bad value can't reach the preview or
+// the printer. Messages say what to fix, in the editor's words.
 
-export type TextPart = {
-	id: string;
-	kind: "text";
-	text: string;
-	sizePt: number;
-	weight: Weight;
-	align: Align;
-	visible: boolean;
-};
-export type LogoPart = { id: string; kind: "logo"; heightMm: number; visible: boolean };
-export type BarcodePart = {
-	id: string;
-	kind: "barcode";
-	heightMm: number;
+const partId = z.string({ error: "needs its own id." }).min(1, { error: "needs its own id." });
+/** Anything but an explicit false shows the part (older designs left it out). */
+const visible = z.unknown().optional().transform((v) => v !== false);
+
+const textPartSchema = z.object({
+	id: partId,
+	kind: z.literal("text"),
+	text: z
+		.string({ error: "has no text." })
+		.max(LIMITS.textLength, { error: `keep text under ${LIMITS.textLength} characters.` }),
+	sizePt: rangeSchema(LIMITS.textPt, `text size must be ${LIMITS.textPt.min} to ${LIMITS.textPt.max} pt.`),
+	weight: z.union([z.literal(400), z.literal(700), z.literal(900)]).catch(700),
+	align: z.enum(["left", "center", "right"]).catch("center"),
+	visible,
+});
+
+const logoPartSchema = z.object({
+	id: partId,
+	kind: z.literal("logo"),
+	heightMm: rangeSchema(LIMITS.blockMm, `logo height must be ${LIMITS.blockMm.min} to ${LIMITS.blockMm.max} mm.`),
+	visible,
+});
+
+const barcodePartSchema = z.object({
+	id: partId,
+	kind: z.literal("barcode"),
+	heightMm: rangeSchema(LIMITS.blockMm, `barcode height must be ${LIMITS.blockMm.min} to ${LIMITS.blockMm.max} mm.`),
 	/** Size of the digits printed under the bars; 0 hides them. */
-	numberSizePt: number;
-	visible: boolean;
-};
-export type LabelPart = TextPart | LogoPart | BarcodePart;
+	numberSizePt: rangeSchema(
+		LIMITS.numberPt,
+		`barcode number size must be ${LIMITS.numberPt.min} to ${LIMITS.numberPt.max} pt.`,
+	),
+	visible,
+});
 
-export type LabelDesign = {
-	widthMm: number;
-	heightMm: number;
-	marginMm: number;
-	/** Space between two shown parts */
-	gapMm: number;
-	parts: LabelPart[];
+const partSchema = z.discriminatedUnion("kind", [textPartSchema, logoPartSchema, barcodePartSchema], {
+	error: "isn't a text, logo or barcode part.",
+});
+
+const { sizeMm, marginMm, gapMm } = LIMITS;
+
+export const designSchema = z
+	.object(
+		{
+			widthMm: rangeSchema(sizeMm, `Width must be ${sizeMm.min} to ${sizeMm.max} mm.`),
+			heightMm: rangeSchema(sizeMm, `Height must be ${sizeMm.min} to ${sizeMm.max} mm.`),
+			marginMm: rangeSchema(marginMm, `Margin must be ${marginMm.min} to ${marginMm.max} mm.`),
+			/** Space between two shown parts */
+			gapMm: rangeSchema(gapMm, `Space between parts must be ${gapMm.min} to ${gapMm.max} mm.`),
+			parts: z
+				.array(partSchema, { error: "The label has no parts." })
+				.max(LIMITS.parts, { error: `A label can have up to ${LIMITS.parts} parts.` }),
+		},
+		{ error: "The label has no layout." },
+	)
+	.superRefine((design, ctx) => {
+		if (2 * design.marginMm >= Math.min(design.widthMm, design.heightMm)) {
+			ctx.addIssue({ code: "custom", path: ["marginMm"], message: "The margin leaves no room on the label." });
+		}
+		const seen = new Set<string>();
+		design.parts.forEach((part, index) => {
+			if (seen.has(part.id)) ctx.addIssue({ code: "custom", path: ["parts", index, "id"], message: "needs its own id." });
+			seen.add(part.id);
+		});
+	});
+
+export type LabelDesign = z.output<typeof designSchema>;
+export type LabelPart = LabelDesign["parts"][number];
+export type TextPart = Extract<LabelPart, { kind: "text" }>;
+export type LogoPart = Extract<LabelPart, { kind: "logo" }>;
+export type BarcodePart = Extract<LabelPart, { kind: "barcode" }>;
+export type Align = TextPart["align"];
+export type Weight = TextPart["weight"];
+
+export type DesignCheck = { ok: true; design: LabelDesign } | { ok: false; message: string };
+
+/** Parses a design; a problem with one part is told as "Part 3: …". */
+export const parseDesign = (value: unknown): DesignCheck => {
+	const result = designSchema.safeParse(value);
+	if (result.success) return { ok: true, design: result.data };
+	const [issue] = result.error.issues;
+	const [field, index] = issue.path;
+	const message = field === "parts" && typeof index === "number" ? `Part ${index + 1}: ${issue.message}` : issue.message;
+	return { ok: false, message };
 };
 
 // ─── Fields filled in at print time ──────────────────────────────────────────
@@ -142,139 +203,72 @@ export const checkFit = (design: LabelDesign): Fit => {
 export const usableWidthMm = (design: LabelDesign): number =>
 	design.widthMm - 2 * design.marginMm;
 
-// ─── Reading a design back from the database ─────────────────────────────────
-
-export type DesignCheck =
-	| { ok: true; design: LabelDesign }
-	| { ok: false; message: string };
-
-const inRange = (n: unknown, { min, max }: { min: number; max: number }) =>
-	typeof n === "number" && Number.isFinite(n) && n >= min && n <= max;
-
-/**
- * Checks a design from the editor or the database (jsonb) before it is
- * saved or drawn, so a bad value can't reach the preview or the printer.
- * Messages say what to fix, in the editor's words.
- */
-export const parseDesign = (value: unknown): DesignCheck => {
-	if (typeof value !== "object" || value === null) return fail("The label has no layout.");
-	const { widthMm, heightMm, marginMm, gapMm, parts } = value as Record<string, unknown>;
-	const { sizeMm, marginMm: marginLimit, gapMm: gapLimit } = LIMITS;
-	if (!inRange(widthMm, sizeMm)) return fail(`Width must be ${sizeMm.min} to ${sizeMm.max} mm.`);
-	if (!inRange(heightMm, sizeMm)) return fail(`Height must be ${sizeMm.min} to ${sizeMm.max} mm.`);
-	if (!inRange(marginMm, marginLimit)) return fail(`Margin must be ${marginLimit.min} to ${marginLimit.max} mm.`);
-	if (!inRange(gapMm, gapLimit)) return fail(`Space between parts must be ${gapLimit.min} to ${gapLimit.max} mm.`);
-	if (2 * (marginMm as number) >= Math.min(widthMm as number, heightMm as number)) {
-		return fail("The margin leaves no room on the label.");
-	}
-	if (!Array.isArray(parts)) return fail("The label has no parts.");
-	if (parts.length > LIMITS.parts) return fail(`A label can have up to ${LIMITS.parts} parts.`);
-
-	const checked: LabelPart[] = [];
-	const ids = new Set<string>();
-	for (const [index, raw] of parts.entries()) {
-		const where = `Part ${index + 1}`;
-		if (typeof raw !== "object" || raw === null) return fail(`${where} is empty.`);
-		const p = raw as Record<string, unknown>;
-		if (typeof p.id !== "string" || p.id === "" || ids.has(p.id)) return fail(`${where} needs its own id.`);
-		ids.add(p.id);
-		const visible = p.visible !== false;
-
-		if (p.kind === "text") {
-			if (typeof p.text !== "string") return fail(`${where} has no text.`);
-			if (p.text.length > LIMITS.textLength) return fail(`${where}: keep text under ${LIMITS.textLength} characters.`);
-			if (!inRange(p.sizePt, LIMITS.textPt)) return fail(`${where}: text size must be ${LIMITS.textPt.min} to ${LIMITS.textPt.max} pt.`);
-			const weight = p.weight === 400 || p.weight === 700 || p.weight === 900 ? p.weight : 700;
-			const align = p.align === "left" || p.align === "right" ? p.align : "center";
-			checked.push({ id: p.id, kind: "text", text: p.text, sizePt: p.sizePt as number, weight, align, visible });
-		} else if (p.kind === "logo") {
-			if (!inRange(p.heightMm, LIMITS.blockMm)) return fail(`Logo height must be ${LIMITS.blockMm.min} to ${LIMITS.blockMm.max} mm.`);
-			checked.push({ id: p.id, kind: "logo", heightMm: p.heightMm as number, visible });
-		} else if (p.kind === "barcode") {
-			if (!inRange(p.heightMm, LIMITS.blockMm)) return fail(`Barcode height must be ${LIMITS.blockMm.min} to ${LIMITS.blockMm.max} mm.`);
-			if (!inRange(p.numberSizePt, LIMITS.numberPt)) return fail(`Barcode number size must be ${LIMITS.numberPt.min} to ${LIMITS.numberPt.max} pt.`);
-			checked.push({
-				id: p.id,
-				kind: "barcode",
-				heightMm: p.heightMm as number,
-				numberSizePt: p.numberSizePt as number,
-				visible,
-			});
-		} else {
-			return fail(`${where} is not a text, logo or barcode part.`);
-		}
-	}
-	return {
-		ok: true,
-		design: {
-			widthMm: widthMm as number,
-			heightMm: heightMm as number,
-			marginMm: marginMm as number,
-			gapMm: gapMm as number,
-			parts: checked,
-		},
-	};
-};
-
 // ─── Label details (not layout) ──────────────────────────────────────────────
+// A label sits in the library under its customer, then its product (by
+// SKU), then its kind. Labels with no SKU (hold, waste, address…) sit under
+// the customer's "General" group.
 
-export type LabelDetailsInput = {
-	name: string;
-	customer: string;
-	kind: string;
-	sku: string;
-	storage: string;
-	barcode: string;
-};
+export const SKU_PATTERN = /^[A-Z0-9-]{3,20}$/;
 
-export type LabelDetails = {
-	name: string;
-	customer: string;
-	kind: LabelKind;
-	sku: string | null;
-	storage: Storage | null;
-	barcode: string | null;
-};
+export const skuSchema = z
+	.string()
+	.trim()
+	.toUpperCase()
+	.regex(SKU_PATTERN, { error: "SKU is 3 to 20 letters, digits or dashes, like 10145." });
 
-export type DetailsCheck =
-	| { ok: true; details: LabelDetails }
-	| { ok: false; field: keyof LabelDetailsInput; message: string };
+export const productNameSchema = tidyText.pipe(
+	z
+		.string()
+		.min(1, { error: "Name the product, like Original Biltong 15 × 45g." })
+		.max(60, { error: "Keep the product name under 60 characters." }),
+);
+
+export const labelDetailsSchema = z
+	.object({
+		name: tidyText.pipe(
+			z
+				.string()
+				.min(1, { error: "Give the label a name people will search for." })
+				.max(80, { error: "Keep the name under 80 characters." }),
+		),
+		customer: tidyText.pipe(
+			z
+				.string()
+				.min(1, { error: "Say who the label is for, or Ember for our own." })
+				.max(40, { error: "Keep the customer under 40 characters." }),
+		),
+		kind: z.enum(LABEL_KINDS, { error: "Pick the kind of label." }),
+		sku: z.string().transform((s) => s.trim()),
+		productName: z.string(),
+		storage: z
+			.enum([...STORAGE_TYPES, ""], { error: "Storage is ambient, chilled or not shown." })
+			.transform((s) => (s === "" ? null : s)),
+		barcode: optionalGtinSchema,
+	})
+	.transform((details, ctx) => {
+		// No SKU: not tied to a product, so any product name is ignored.
+		if (details.sku === "") return { ...details, sku: null, productName: null };
+		const sku = skuSchema.safeParse(details.sku);
+		if (!sku.success) ctx.addIssue({ code: "custom", path: ["sku"], message: sku.error.issues[0].message });
+		const productName = productNameSchema.safeParse(details.productName);
+		if (!productName.success) {
+			ctx.addIssue({ code: "custom", path: ["productName"], message: productName.error.issues[0].message });
+		}
+		if (!sku.success || !productName.success) return z.NEVER;
+		return { ...details, sku: sku.data, productName: productName.data };
+	});
+
+/** What the details form sends: every field as typed. */
+export type LabelDetailsInput = z.input<typeof labelDetailsSchema>;
+export type LabelDetails = z.output<typeof labelDetailsSchema>;
+export type DetailsField = keyof LabelDetailsInput;
+
+export type DetailsCheck = { ok: true; details: LabelDetails } | { ok: false; field?: DetailsField; message: string };
 
 /** Checks the name, grouping and barcode of a label. */
-export const checkDetails = (input: LabelDetailsInput): DetailsCheck => {
-	const name = input.name.trim().replace(/\s+/g, " ");
-	if (name === "") return { ok: false, field: "name", message: "Give the label a name people will search for." };
-	if (name.length > 80) return { ok: false, field: "name", message: "Keep the name under 80 characters." };
-
-	const customer = input.customer.trim().replace(/\s+/g, " ");
-	if (customer === "") return { ok: false, field: "customer", message: "Say who the label is for, or Ember for our own." };
-	if (customer.length > 40) return { ok: false, field: "customer", message: "Keep the customer under 40 characters." };
-
-	if (!(LABEL_KINDS as readonly string[]).includes(input.kind)) {
-		return { ok: false, field: "kind", message: "Pick the kind of label." };
-	}
-
-	const sku = input.sku.trim().toUpperCase();
-	if (sku !== "" && !/^[A-Z0-9-]{3,20}$/.test(sku)) {
-		return { ok: false, field: "sku", message: "SKU is 3 to 20 letters, digits or dashes, like 10145." };
-	}
-
-	const storage = input.storage === "" ? null : input.storage;
-	if (storage !== null && !(STORAGE_TYPES as readonly string[]).includes(storage)) {
-		return { ok: false, field: "storage", message: "Storage is ambient, chilled or not shown." };
-	}
-
-	let barcode: string | null = null;
-	if (input.barcode.trim() !== "") {
-		const check = checkGtin(input.barcode);
-		if (!check.ok) return { ok: false, field: "barcode", message: check.message };
-		barcode = check.gtin;
-	}
-
-	return {
-		ok: true,
-		details: { name, customer, kind: input.kind as LabelKind, sku: sku || null, storage: storage as Storage | null, barcode },
-	};
+export const checkDetails = (input: unknown): DetailsCheck => {
+	const result = labelDetailsSchema.safeParse(input);
+	return result.success ? { ok: true, details: result.data } : firstIssue<DetailsField>(result.error);
 };
 
 // ─── A fresh label ───────────────────────────────────────────────────────────
@@ -297,4 +291,3 @@ export const newDesign = (): LabelDesign => ({
 });
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
-const fail = (message: string): DesignCheck => ({ ok: false, message });

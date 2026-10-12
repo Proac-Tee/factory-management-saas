@@ -54,7 +54,10 @@ describe("parseDesign", () => {
 	it("refuses unknown parts and duplicate ids", () => {
 		const design = newDesign();
 		expect(parseDesign({ ...design, parts: [{ id: "x", kind: "image" }] })).toMatchObject({ ok: false });
-		expect(parseDesign({ ...design, parts: [design.parts[0], design.parts[0]] })).toMatchObject({ ok: false });
+		expect(parseDesign({ ...design, parts: [design.parts[0], design.parts[0]] })).toEqual({
+			ok: false,
+			message: "Part 2: needs its own id.",
+		});
 	});
 
 	it("defaults weight and alignment it doesn't know", () => {
@@ -67,22 +70,51 @@ describe("parseDesign", () => {
 });
 
 describe("checkDetails", () => {
-	const ok = { name: " Original  Biltong 45g SRP ", customer: "Lenhams", kind: "srp", sku: "10145", storage: "ambient", barcode: "15060534671000" };
+	const ok = {
+		name: " Original  Biltong 45g SRP ",
+		customer: "Lenhams",
+		kind: "srp",
+		sku: "10145",
+		productName: " Original Biltong  15 × 45g ",
+		storage: "ambient",
+		barcode: "15060534671000",
+	};
 
 	it("tidies the name and keeps the details", () => {
 		expect(checkDetails(ok)).toEqual({
 			ok: true,
-			details: { name: "Original Biltong 45g SRP", customer: "Lenhams", kind: "srp", sku: "10145", storage: "ambient", barcode: "15060534671000" },
+			details: {
+				name: "Original Biltong 45g SRP",
+				customer: "Lenhams",
+				kind: "srp",
+				sku: "10145",
+				productName: "Original Biltong 15 × 45g",
+				storage: "ambient",
+				barcode: "15060534671000",
+			},
 		});
 	});
 
 	it("allows labels with no SKU, storage or barcode", () => {
-		expect(checkDetails({ ...ok, sku: "", storage: "", barcode: "" })).toMatchObject({ ok: true, details: { sku: null, storage: null, barcode: null } });
+		expect(checkDetails({ ...ok, sku: "", storage: "", barcode: "" })).toMatchObject({
+			ok: true,
+			details: { sku: null, productName: null, storage: null, barcode: null },
+		});
 	});
 
 	it("points at the field to fix", () => {
 		expect(checkDetails({ ...ok, name: "" })).toMatchObject({ ok: false, field: "name" });
 		expect(checkDetails({ ...ok, kind: "box" })).toMatchObject({ ok: false, field: "kind" });
-		expect(checkDetails({ ...ok, barcode: "15060534671012" })).toMatchObject({ ok: false, field: "barcode" });
+		expect(checkDetails({ ...ok, barcode: "15060534671012" })).toMatchObject({
+			ok: false,
+			field: "barcode",
+			message: "The last digit should be 7. Check the number on your GS1 account.",
+		});
+		expect(checkDetails({ ...ok, sku: "1" })).toMatchObject({ ok: false, field: "sku" });
+	});
+
+	it("needs a product name when the label has a SKU", () => {
+		expect(checkDetails({ ...ok, productName: "  " })).toMatchObject({ ok: false, field: "productName" });
+		expect(checkDetails({ ...ok, sku: " 10145a " })).toMatchObject({ ok: true, details: { sku: "10145A" } });
 	});
 });

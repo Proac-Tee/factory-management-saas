@@ -5,22 +5,30 @@
 
 import { parseArgs } from "node:util";
 import postgres from "postgres";
-import { checkEmail, isRole, ROLES } from "../entities/roles";
+import { z } from "zod";
+import { emailSchema, ROLES } from "../entities/roles";
+import { databaseUrl } from "../lib/env";
+
+const argsSchema = z.object({
+	email: emailSchema,
+	role: z.enum(ROLES, { error: `must be one of ${ROLES.join(", ")}.` }).default("operator"),
+});
 
 const main = async () => {
 	const { values } = parseArgs({ options: { email: { type: "string" }, role: { type: "string" } } });
-	const email = checkEmail(values.email ?? "");
-	if (!email.ok) throw new Error(`--email: ${email.message}`);
-	const role = values.role ?? "operator";
-	if (!isRole(role)) throw new Error(`--role must be one of ${ROLES.join(", ")}.`);
-	if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set (see .env.example).");
+	const args = argsSchema.safeParse(values);
+	if (!args.success) {
+		const [issue] = args.error.issues;
+		throw new Error(`--${String(issue.path[0])}: ${issue.message}`);
+	}
+	const { email, role } = args.data;
 
-	const sql = postgres(process.env.DATABASE_URL, { prepare: false });
+	const sql = postgres(databaseUrl(), { prepare: false });
 	try {
 		await sql`
-			insert into public.allowed_emails (email, role) values (${email.email}, ${role})
+			insert into public.allowed_emails (email, role) values (${email}, ${role})
 			on conflict (email) do update set role = excluded.role`;
-		console.log(`${email.email} can now sign up and sign in as ${role}.`);
+		console.log(`${email} can now sign up and sign in as ${role}.`);
 	} finally {
 		await sql.end();
 	}

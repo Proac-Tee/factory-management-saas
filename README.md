@@ -35,7 +35,13 @@ The same rules are enforced twice: in the app (`entities/roles.ts`,
    LENHAMS…). Its folders are kept; existing labels can be skipped or replaced.
 6. In Supabase Auth → URL Configuration, add `<your site>/auth/confirm` to the
    redirect URLs (password reset and email confirmation links land there).
-7. In production, set `SITE_URL` to the app's address. Email links are built
+7. On Vercel, connect the Supabase integration (Vercel → Integrations →
+   Supabase) to Production **and** Preview, then redeploy: it sets the
+   Supabase URL, key and `POSTGRES_URL` (the pooler), which the app reads in
+   place of `DATABASE_URL`. Without the integration, add the variables from
+   `.env.example` by hand.
+8. In production, set `SITE_URL` to the app's address (on Vercel it falls
+   back to the production domain). Email links are built
    from it; without it they fall back to the request's Origin header, which
    a request can fake.
 

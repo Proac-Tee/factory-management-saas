@@ -9,24 +9,30 @@
 // own machine. Labels are matched on their path inside the folder, so running
 // it again is safe.
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { XMLParser } from "fast-xml-parser";
 import { unzipSync } from "fflate";
 import postgres from "postgres";
-import { importLabel, type OdgItem } from "../entities/label-import";
-import { parseDesign } from "../entities/label";
+import { z } from "zod";
+import { checkDetails, parseDesign } from "../entities/label";
+import { importLabel, type OdgItem, productNameFor } from "../entities/label-import";
+import { databaseUrl } from "../lib/env";
 
 const { values, positionals } = parseArgs({
 	allowPositionals: true,
 	options: { replace: { type: "boolean" }, "dry-run": { type: "boolean" } },
 });
-const root = positionals[0];
-if (!root) {
-	console.error('Give the folder: pnpm labels:import "/path/to/Label Designs"');
+const folder = z
+	.string({ error: 'Give the folder: pnpm labels:import "/path/to/Label Designs"' })
+	.refine((path) => existsSync(path) && statSync(path).isDirectory(), { error: "That folder doesn't exist." })
+	.safeParse(positionals[0]);
+if (!folder.success) {
+	console.error(folder.error.issues[0].message);
 	process.exit(1);
 }
+const root = folder.data;
 
 // ─── Reading an .odg ─────────────────────────────────────────────────────────
 
@@ -183,13 +189,7 @@ const main = async () => {
 	const files = odgFiles(root).sort();
 	console.log(`Found ${files.length} labels in ${root}`);
 
-	const sql = values["dry-run"]
-		? null
-		: postgres(process.env.DATABASE_URL ?? "", { prepare: false });
-	if (sql && !process.env.DATABASE_URL) {
-		console.error("DATABASE_URL is not set (see .env.example).");
-		process.exit(1);
-	}
+	const sql = values["dry-run"] ? null : postgres(databaseUrl(), { prepare: false });
 
 	let added = 0;
 	let replaced = 0;
@@ -203,21 +203,27 @@ const main = async () => {
 			const label = importLabel(source, page, items);
 			const design = parseDesign(label.design);
 			if (!design.ok) throw new Error(design.message);
+			// The same rules the editor applies, so imported labels can be saved as they are.
+			const productName = label.sku ? productNameFor(label.name, label.sku) : "";
+			const details = checkDetails({
+				...label,
+				sku: label.sku ?? "",
+				productName,
+				storage: label.storage ?? "",
+				barcode: label.barcode ?? "",
+			});
+			if (!details.ok) throw new Error(details.message);
 
 			if (!sql) {
 				console.log(`${label.customer.padEnd(10)} ${label.kind.padEnd(8)} ${label.name}  (${design.design.parts.length} parts)`);
 				continue;
 			}
-			const row = {
-				name: label.name,
-				customer: label.customer,
-				kind: label.kind,
-				sku: label.sku,
-				storage: label.storage,
-				barcode: label.barcode,
-				design: sql.json(design.design),
-				source_file: source,
-			};
+			const { name, customer, kind, sku, storage, barcode } = details.details;
+			const row = { name, customer, kind, sku, storage, barcode, design: sql.json(design.design), source_file: source };
+			// A new SKU adds its product; an existing product keeps the name editors gave it.
+			if (sku) {
+				await sql`insert into public.products (sku, name) values (${sku}, ${productName}) on conflict (sku) do nothing`;
+			}
 			const [existing] = await sql`select id from public.labels where source_file = ${source}`;
 			if (existing && !values.replace) {
 				skipped++;

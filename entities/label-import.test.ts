@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { checkFit } from "./label";
-import { customerFor, importLabel, kindFor, nameFor, type OdgItem, skuFor, storageFor, withFields } from "./label-import";
+import {
+	customerFor,
+	importLabel,
+	kindFor,
+	nameFor,
+	type OdgItem,
+	productNameFor,
+	skuFor,
+	storageFor,
+	withFields,
+} from "./label-import";
 
 describe("grouping from the folder", () => {
 	it("finds the customer, with Tesco and Alliance by file name", () => {
@@ -83,5 +93,13 @@ describe("importLabel", () => {
 		expect(label.barcode).toBe("15060534670737");
 		expect(label.design.parts).toHaveLength(1);
 		expect(label.design.parts[0]).toMatchObject({ kind: "barcode", numberSizePt: 9 });
+	});
+});
+
+describe("productNameFor", () => {
+	it("drops the SKU and the pack level from the label name", () => {
+		expect(productNameFor("Original Biltong 45g SRP 10145", "10145")).toBe("Original Biltong 45g");
+		expect(productNameFor("Chilli Biltong 15x45g Shipper Label - 10146", "10146")).toBe("Chilli Biltong 15x45g");
+		expect(productNameFor("PALLET LABELS 10097", "10097")).toBe("Product 10097");
 	});
 });

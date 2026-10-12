@@ -36,6 +36,13 @@
       "when": 1791819702704,
       "tag": "0004_allowed_list_signup",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791823154873,
+      "tag": "0005_products",
+      "breakpoints": true
     }
   ]
 }

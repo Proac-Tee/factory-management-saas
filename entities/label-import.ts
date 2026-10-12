@@ -90,6 +90,27 @@ export const nameFor = (path: string): string => {
 		.trim();
 };
 
+/** Words that name the pack level, not the product. */
+const PACK_LEVEL_WORDS = /\b(SRP|SHIPPER|PALLET|CASE|LABELS?)\b/gi;
+
+/**
+ * The product a label is for, from the label's name: "Original Biltong 45g
+ * SRP 10145" → "Original Biltong 45g". The same rule backfills products in
+ * drizzle/0005_*.sql; editors can rename a product afterwards.
+ */
+export const productNameFor = (labelName: string, sku: string): string => {
+	const escaped = sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const name = labelName
+		.replace(new RegExp(`\\b${escaped}\\b`, "gi"), " ")
+		.replace(PACK_LEVEL_WORDS, " ")
+		.replace(/\s+/g, " ")
+		.replace(/^[\s-]+|[\s-]+$/g, "")
+		.slice(0, 60)
+		.trim();
+	return name || `Product ${sku}`;
+};
+
+
 // ─── Details read from the text ──────────────────────────────────────────────
 
 const SKU_IN_TEXT = /SKU:?\s*([A-Z0-9-]{3,20})/i;

@@ -105,6 +105,52 @@ export const allowedEmails = pgTable(
 	],
 ).enableRLS();
 
+// ─── Products ────────────────────────────────────────────────────────────────
+
+const SKU_CHECK = "'^[A-Z0-9-]{3,20}$'";
+
+/**
+ * What Ember packs, by SKU. Labels for the same product (its SRP, shipper
+ * and pallet labels) share a SKU, so the library groups them under one name
+ * that editors can change in one place. Never deleted.
+ */
+export const products = pgTable(
+	"products",
+	{
+		sku: text().primaryKey(),
+		name: text().notNull(),
+		createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+		updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.notNull()
+			.defaultNow()
+			.$onUpdate(() => sql`now()`),
+	},
+	(t) => [
+		check("products_sku_format", sql`${t.sku} ~ ${sql.raw(SKU_CHECK)}`),
+		check("products_name_not_blank", sql`btrim(${t.name}) <> ''`),
+		pgPolicy("products_select", {
+			for: "select",
+			to: authenticatedRole,
+			using: anyRole,
+		}),
+		pgPolicy("products_insert", {
+			for: "insert",
+			to: authenticatedRole,
+			withCheck: sql`${hasRole("admin", "editor")} and ${t.createdBy} = ${authUid} and ${t.updatedBy} = ${authUid}`,
+		}),
+		pgPolicy("products_update", {
+			for: "update",
+			to: authenticatedRole,
+			using: hasRole("admin", "editor"),
+			withCheck: sql`${hasRole("admin", "editor")} and ${t.updatedBy} = ${authUid}`,
+		}),
+	],
+).enableRLS();
+
+export type ProductRow = typeof products.$inferSelect;
+
 // ─── Labels ──────────────────────────────────────────────────────────────────
 
 export const labelKind = pgEnum("label_kind", LABEL_KINDS);
@@ -122,7 +168,8 @@ export const labels = pgTable(
 		name: text().notNull(),
 		customer: text().notNull(),
 		kind: labelKind().notNull(),
-		sku: text(),
+		/** The product the label is for; none for hold, waste, address labels. */
+		sku: text().references(() => products.sku, { onUpdate: "cascade" }),
 		storage: storageType(),
 		/** GTIN-13 (pouch, EAN-13) or GTIN-14 (case, ITF-14) */
 		barcode: text(),
@@ -141,11 +188,12 @@ export const labels = pgTable(
 	(t) => [
 		check("labels_name_not_blank", sql`btrim(${t.name}) <> ''`),
 		check("labels_customer_not_blank", sql`btrim(${t.customer}) <> ''`),
-		check("labels_sku_format", sql`${t.sku} is null or ${t.sku} ~ '^[A-Z0-9-]{3,20}$'`),
+		check("labels_sku_format", sql`${t.sku} is null or ${t.sku} ~ ${sql.raw(SKU_CHECK)}`),
 		check("labels_barcode_format", sql`${t.barcode} is null or ${t.barcode} ~ '^[0-9]{13,14}$'`),
 		check("labels_design_is_object", sql`jsonb_typeof(${t.design}) = 'object'`),
 		index("labels_barcode_idx").on(t.barcode),
 		index("labels_customer_idx").on(t.customer),
+		index("labels_sku_idx").on(t.sku),
 		pgPolicy("labels_select", {
 			for: "select",
 			to: authenticatedRole,

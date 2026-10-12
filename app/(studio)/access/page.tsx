@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { PageLoading } from "@/components/spinner";
 import { getAccess } from "@/use-cases/access";
 import { AccessScreen } from "./access-screen";
 
@@ -7,7 +8,7 @@ export const metadata: Metadata = { title: "People and access" };
 
 export default function AccessPage() {
 	return (
-		<Suspense fallback={<p className="p-10 text-lg text-graphite">Loading people…</p>}>
+		<Suspense fallback={<PageLoading label="Loading people…" />}>
 			<Access />
 		</Suspense>
 	);

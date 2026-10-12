@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Field } from "@/components/field";
 import { MailIcon } from "@/components/icons";
+import { Spinner } from "@/components/spinner";
 import { button, ErrorLine, fieldClass, SavedLine } from "@/components/ui";
 import { type AuthState, login, requestReset, setNewPassword, signup } from "./actions";
 
@@ -128,6 +129,7 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 				{otherError && <ErrorLine message={otherError} />}
 				{state?.message && <SavedLine>{state.message}</SavedLine>}
 				<button type="submit" disabled={pending} className={`${button({ size: "xl" })} w-full`}>
+					{pending && <Spinner size={20} />}
 					{pending ? copy.busy : copy.button}
 				</button>
 				<p className="border-t border-rule pt-4 text-sm leading-5 text-graphite">

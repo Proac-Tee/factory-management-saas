@@ -2,6 +2,7 @@
 
 import { BarcodeDetector, prepareZXingModule } from "barcode-detector/ponyfill";
 import { useEffect, useRef, useState } from "react";
+import { Spinner } from "./spinner";
 
 // Serve the decoder from this app, not a CDN, so scanning works on the
 // factory network without reaching a third party (public/vendor/).
@@ -104,7 +105,8 @@ export function CameraScanner({ onRead, paused }: { onRead: (value: string) => v
 				</div>
 			)}
 			{status !== "scanning" && (
-				<p role="status" className="absolute inset-0 flex items-center justify-center p-8 text-center text-lg leading-normal text-stock">
+				<p role="status" className="absolute inset-0 flex items-center justify-center gap-3 p-8 text-center text-lg leading-normal text-stock">
+					{status === "starting" && <Spinner size={24} />}
 					{MESSAGES[status]}
 				</p>
 			)}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { PageLoading } from "@/components/spinner";
 import { getLabelEditor } from "@/use-cases/labels";
 import { LabelEditor } from "../_components/editor/label-editor";
 
@@ -8,7 +9,7 @@ export const metadata: Metadata = { title: "Label" };
 
 export default function LabelPage({ params, searchParams }: PageProps<"/labels/[id]">) {
 	return (
-		<Suspense fallback={<p className="p-10 text-lg text-graphite">Loading the label…</p>}>
+		<Suspense fallback={<PageLoading label="Loading the label…" />}>
 			<Label params={params} searchParams={searchParams} />
 		</Suspense>
 	);

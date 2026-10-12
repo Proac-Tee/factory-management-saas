@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { PageLoading } from "@/components/spinner";
 import { getLabelToPrint } from "@/use-cases/labels";
 import { PrintScreen } from "./print-screen";
 
@@ -8,7 +9,7 @@ export const metadata: Metadata = { title: "Print labels" };
 
 export default function PrintPage({ params }: PageProps<"/labels/[id]/print">) {
 	return (
-		<Suspense fallback={<p className="p-10 text-lg text-graphite">Loading the label…</p>}>
+		<Suspense fallback={<PageLoading label="Loading the label…" />}>
 			<Print params={params} />
 		</Suspense>
 	);

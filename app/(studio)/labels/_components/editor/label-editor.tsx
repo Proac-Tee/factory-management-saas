@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PrinterIcon } from "@/components/icons";
+import { Spinner } from "@/components/spinner";
 import { button, ErrorLine, PageHeader } from "@/components/ui";
 import { KIND_NAMES } from "@/entities/label";
 import type { EditorView } from "@/use-cases/labels";
@@ -50,6 +51,7 @@ export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: 
 							disabled={editor.saving}
 							className={`${button({ size: "md" })} flex-1 sm:flex-none`}
 						>
+							{editor.saving && <Spinner />}
 							{editor.saving ? "Saving…" : label ? "Save label" : "Create label"}
 						</button>
 					)}

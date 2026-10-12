@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { PageLoading } from "@/components/spinner";
 import { getScan } from "@/use-cases/labels";
 import { ScanScreen } from "./scan-screen";
 
@@ -7,7 +8,7 @@ export const metadata: Metadata = { title: "Scan" };
 
 export default function ScanPage({ searchParams }: PageProps<"/scan">) {
 	return (
-		<Suspense fallback={<p className="p-10 text-lg text-graphite">Loading…</p>}>
+		<Suspense fallback={<PageLoading label="Loading…" />}>
 			<Scan searchParams={searchParams} />
 		</Suspense>
 	);

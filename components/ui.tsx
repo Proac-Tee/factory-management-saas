@@ -6,7 +6,7 @@ import { AlertTriangleIcon, CheckIcon } from "./icons";
 
 /** A field on a white page. The underline on a rounded-top field is the Paper style. */
 export const fieldClass =
-	"h-tap w-full rounded-t-md border-b-2 border-ink bg-wash px-4 text-lg leading-[22px] outline-none placeholder:font-medium placeholder:text-graphite focus-visible:ring-2 focus-visible:ring-ink aria-invalid:border-hold";
+	"h-tap w-full rounded-t-md inset-shadow-[0_-2px_0_var(--color-ink)] bg-wash px-4 text-lg leading-[22px] outline-none placeholder:font-medium placeholder:text-graphite focus-visible:ring-2 focus-visible:ring-ink aria-invalid:inset-shadow-[0_-2px_0_var(--color-hold)]";
 /** A field inside a wash panel. */
 export const panelFieldClass = fieldClass.replace("bg-wash", "bg-stock");
 export const labelClass = "text-sm leading-[18px] font-medium text-graphite";
@@ -33,7 +33,7 @@ export const button = ({
 	variant = "primary",
 	size = "lg",
 }: { variant?: keyof typeof BUTTON_VARIANTS; size?: keyof typeof BUTTON_SIZES } = {}) =>
-	`inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-bold whitespace-nowrap ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]}`;
+	`inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-bold whitespace-nowrap transition-[background-color,border-color,color,scale] duration-150 ease-out active:scale-[0.97] disabled:active:scale-100 motion-reduce:active:scale-100 ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]}`;
 
 export function ErrorLine({ message, id }: { message: string; id?: string }) {
 	return (

@@ -5,6 +5,7 @@
 
 import { useId, useState } from "react";
 import { MinusIcon, PlusIcon } from "./icons";
+import { segmentClass, useSegmentPill } from "./segment-pill";
 import { labelClass } from "./ui";
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -32,20 +33,21 @@ export function Segmented<T extends string>({
 	className?: string;
 }) {
 	const height = size === "sm" ? "h-9 pointer-coarse:h-11" : "h-11 pointer-coarse:h-12";
+	const { ref, pill, ready } = useSegmentPill<HTMLDivElement>(value);
 	return (
 		<div className={`flex items-center justify-between gap-3 ${className}`}>
 			{!hideLabel && <span className="text-[15px]">{label}</span>}
-			<div role="radiogroup" aria-label={label} className={`flex gap-1 rounded-md bg-wash p-1 ${hideLabel ? "flex-1" : ""}`}>
+			<div ref={ref} role="radiogroup" aria-label={label} className={`relative isolate flex gap-1 rounded-md bg-wash p-1 ${hideLabel ? "flex-1" : ""}`}>
+				{pill}
 				{options.map(([v, name]) => (
 					<button
 						key={v}
 						type="button"
 						role="radio"
 						aria-checked={value === v}
+						data-active={value === v || undefined}
 						onClick={() => onChange(v)}
-						className={`${height} flex-1 rounded-[6px] px-3 text-sm ${
-							value === v ? "bg-ink font-bold text-stock" : "font-medium hover:bg-rule"
-						}`}
+						className={`${height} flex-1 rounded-[6px] px-3 text-sm ${segmentClass(value === v, ready)}`}
 					>
 						{name}
 					</button>
@@ -177,7 +179,7 @@ export function NumberBox({
 						if (n !== null) onChange(n);
 					}}
 					onBlur={() => invalid && setText(String(value))}
-					className="h-12 w-full rounded-t-md border-b-2 border-ink bg-wash pr-10 pl-3 text-lg font-bold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ink aria-invalid:border-hold pointer-coarse:h-14"
+					className="h-12 w-full rounded-t-md inset-shadow-[0_-2px_0_var(--color-ink)] bg-wash pr-10 pl-3 text-lg font-bold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ink aria-invalid:inset-shadow-[0_-2px_0_var(--color-hold)] pointer-coarse:h-14"
 				/>
 				<span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-graphite">{unit}</span>
 			</div>

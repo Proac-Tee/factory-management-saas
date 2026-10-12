@@ -26,6 +26,10 @@
 	--breakpoint-tablet: 1180px;
 	--spacing-tap: 56px;
 	--radius-md: 8px;
+
+	/* Motion: quick, decelerating, never bouncy. A label leaves the printer, it doesn't spring. */
+	--ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-in-quick: cubic-bezier(0.4, 0, 1, 1);
 }
 
 @theme inline {
@@ -60,11 +64,109 @@ body {
 	}
 }
 
-/* Toasts rise from the bottom; skipped for people who reduce motion (motion-safe). */
+/* Toasts feed up from the bottom edge like a printer slip, and drop away when dismissed. */
 @keyframes toast-in {
 	from {
-		transform: translateY(8px);
+		clip-path: inset(100% 0 0 0);
+		transform: translateY(10px);
+	}
+}
+@keyframes toast-out {
+	to {
 		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes fade-out {
+	to {
+		opacity: 0;
+	}
+}
+
+/* The print preview: the label feeds out of the printer's slot (the top of its panel). */
+@keyframes feed {
+	from {
+		transform: translateY(calc(-100% - 48px));
+	}
+}
+.feed {
+	animation: feed 720ms var(--ease-out-expo) both;
+}
+@media (prefers-reduced-motion: reduce) {
+	.feed {
+		animation: fade-in 200ms ease-out both;
+	}
+}
+
+/* Sheets: the phone menu slides in from the left, panels rise from the bottom.
+   @starting-style gives the entry; allow-discrete keeps the exit visible. */
+.sheet-left,
+.sheet-up {
+	transition:
+		transform 320ms var(--ease-out-expo),
+		overlay 320ms allow-discrete,
+		display 320ms allow-discrete;
+}
+.sheet-left:not([open]) {
+	transform: translateX(-100%);
+	transition-duration: 200ms;
+	transition-timing-function: var(--ease-in-quick);
+}
+.sheet-up:not([open]) {
+	transform: translateY(100%);
+	transition-duration: 200ms;
+	transition-timing-function: var(--ease-in-quick);
+}
+@starting-style {
+	.sheet-left[open] {
+		transform: translateX(-100%);
+	}
+	.sheet-up[open] {
+		transform: translateY(100%);
+	}
+}
+.sheet-left::backdrop,
+.sheet-up::backdrop {
+	background-color: rgb(0 0 0 / 0);
+	transition:
+		background-color 320ms var(--ease-out-expo),
+		overlay 320ms allow-discrete,
+		display 320ms allow-discrete;
+}
+.sheet-left[open]::backdrop,
+.sheet-up[open]::backdrop {
+	background-color: rgb(0 0 0 / 0.4);
+}
+@starting-style {
+	.sheet-left[open]::backdrop,
+	.sheet-up[open]::backdrop {
+		background-color: rgb(0 0 0 / 0);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.sheet-left,
+	.sheet-up {
+		transition:
+			opacity 160ms ease-out,
+			overlay 160ms allow-discrete,
+			display 160ms allow-discrete;
+	}
+	.sheet-left:not([open]),
+	.sheet-up:not([open]) {
+		transform: none;
+		opacity: 0;
+	}
+	@starting-style {
+		.sheet-left[open],
+		.sheet-up[open] {
+			transform: none;
+			opacity: 0;
+		}
 	}
 }
 

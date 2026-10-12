@@ -10,7 +10,7 @@ import { AlertTriangleIcon, CheckIcon, XIcon } from "./icons";
 export type ToastTone = "done" | "problem" | "info";
 
 type ToastAction = { label: string; onClick: () => void };
-type Toast = { id: number; message: string; tone: ToastTone; action?: ToastAction };
+type Toast = { id: number; message: string; tone: ToastTone; action?: ToastAction; leaving?: boolean };
 type ShowOptions = { tone?: ToastTone; action?: ToastAction };
 
 type ToastApi = { show: (message: string, options?: ShowOptions) => void };
@@ -20,12 +20,17 @@ const ToastContext = createContext<ToastApi | null>(null);
 /** How long a toast stays, by tone. Problems stay longer so they can be read. */
 const DURATION_MS: Record<ToastTone, number> = { done: 4000, info: 5000, problem: 8000 };
 const MAX_SHOWN = 3;
+/** Matches the toast-out animation, so a toast is removed once it has faded. */
+const EXIT_MS = 160;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const nextId = useRef(1);
 
-	const dismiss = useCallback((id: number) => setToasts((all) => all.filter((t) => t.id !== id)), []);
+	const dismiss = useCallback((id: number) => {
+		setToasts((all) => all.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+		setTimeout(() => setToasts((all) => all.filter((t) => t.id !== id)), EXIT_MS);
+	}, []);
 	const show = useCallback((message: string, { tone = "done", action }: ShowOptions = {}) => {
 		const id = nextId.current++;
 		setToasts((all) => [...all, { id, message, tone, action }].slice(-MAX_SHOWN));
@@ -78,7 +83,11 @@ function ToastSlip({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 			onFocus={() => setPaused(true)}
 			onBlur={() => setPaused(false)}
 			onKeyDown={(e) => e.key === "Escape" && onDismiss()}
-			className="pointer-events-auto flex w-full max-w-[420px] items-stretch overflow-hidden rounded-md bg-ink text-stock shadow-[0_2px_0_0_var(--color-ink)] motion-safe:animate-[toast-in_160ms_ease-out]"
+			className={`pointer-events-auto flex w-full max-w-[420px] items-stretch overflow-hidden rounded-md bg-ink text-stock shadow-[0_2px_0_0_var(--color-ink)] ${
+				toast.leaving
+					? "pointer-events-none animate-[toast-out_160ms_var(--ease-in-quick)_forwards] motion-reduce:animate-[fade-out_160ms_ease-in_forwards]"
+					: "animate-[toast-in_360ms_var(--ease-out-expo)] motion-reduce:animate-[fade-in_160ms_ease-out]"
+			}`}
 		>
 			<span aria-hidden="true" className={`w-1.5 shrink-0 ${STRIPE[toast.tone]}`} />
 			<div className="flex min-h-14 flex-1 items-center gap-3 py-3 pr-2 pl-3.5">

@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { AlertTriangleIcon } from "@/components/icons";
 import { LabelRender } from "@/components/label-render";
-import { KIND_NAMES } from "@/entities/label";
+import { KIND_NAMES, needsBarcodeNumber } from "@/entities/label";
 import { type CustomerGroup, type FlatGroup, type ProductGroup, sizeName } from "@/entities/library";
 import type { LabelSummary } from "@/use-cases/labels";
 
@@ -70,14 +71,20 @@ export function LabelGrid({
 			{labels.map((label) => (
 				<li key={label.id}>
 					<Link href={`/labels/${label.id}`} className="group flex flex-col gap-2.5">
-						<div className="flex aspect-square items-center justify-center rounded-[4px] border border-rule bg-stock p-2 [container-type:size] group-hover:border-ink">
+						<div className="flex aspect-square items-center justify-center rounded-[4px] border border-rule bg-stock p-2 transition-colors duration-150 [container-type:size] group-hover:border-ink [&_.barcode-missing-note]:invisible">
 							<LabelRender design={label.design} barcode={label.barcode} scale="fit" />
 						</div>
 						<div className="flex flex-col gap-0.5">
-							<span className="text-base leading-5 font-bold group-hover:underline">{label.name}</span>
+							<span className="text-base leading-5 font-bold underline-offset-2 group-hover:underline">{label.name}</span>
 							<span className="text-sm leading-[18px] text-graphite tabular-nums">
 								{caption(label).filter(Boolean).join(", ")}
 							</span>
+							{needsBarcodeNumber(label.design, label.barcode) && (
+								<span className="mt-1 flex items-center gap-1.5 text-sm leading-[18px] font-bold">
+									<AlertTriangleIcon size={16} className="shrink-0" />
+									No barcode number
+								</span>
+							)}
 						</div>
 					</Link>
 				</li>

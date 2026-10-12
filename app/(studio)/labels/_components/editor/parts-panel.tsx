@@ -242,7 +242,10 @@ function FitMeter({ fit, heightMm, tooWide }: { fit: Fit; heightMm: number; tooW
 				</span>
 			</div>
 			<div className="h-2 overflow-hidden rounded-[2px] bg-wash" aria-hidden="true">
-				<div className={`h-full ${fit.fits ? "bg-ink" : "bg-hold"}`} style={{ width: `${used}%` }} />
+				<div
+					className={`h-full w-full origin-left transition-[scale,background-color] duration-300 ease-out-expo motion-reduce:transition-[background-color] ${fit.fits ? "bg-ink" : "bg-hold"}`}
+					style={{ scale: `${used / 100} 1` }}
+				/>
 			</div>
 			{!fit.fits ? (
 				<ErrorLine message={`Doesn't fit: ${Math.abs(fit.spareMm)} mm too tall. Make some parts smaller or hide one.`} />

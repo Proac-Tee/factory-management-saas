@@ -58,7 +58,7 @@ export function StudioShell({
 					type="submit"
 					aria-label="Sign out"
 					title="Sign out"
-					className="flex size-11 items-center justify-center rounded-md hover:bg-wash pointer-coarse:size-14"
+					className="flex size-11 items-center justify-center rounded-md transition-colors duration-150 hover:bg-wash pointer-coarse:size-14"
 				>
 					<LogoutIcon />
 				</button>
@@ -95,7 +95,7 @@ export function StudioShell({
 			<dialog
 				ref={drawer}
 				aria-label="Menu"
-				className="no-print m-0 h-dvh max-h-none w-[min(320px,85vw)] max-w-none flex-col gap-1 border-r border-ink bg-stock px-4 pt-4 pb-5 backdrop:bg-ink/40 open:flex"
+				className="sheet-left no-print m-0 h-dvh max-h-none w-[min(320px,85vw)] max-w-none flex-col gap-1 border-r border-ink bg-stock px-4 pt-4 pb-5 open:flex"
 				onClick={(event) => {
 					if (event.target === event.currentTarget) event.currentTarget.close();
 				}}
@@ -145,7 +145,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 		<Link
 			href={item.href}
 			aria-current={active ? "page" : undefined}
-			className={`flex items-center gap-3 rounded-md px-3 text-base leading-5 ${tap} ${
+			className={`flex items-center gap-3 rounded-md px-3 text-base leading-5 transition-colors duration-150 ${tap} ${
 				active ? "bg-ink font-bold text-stock" : "font-medium hover:bg-wash"
 			}`}
 		>

@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { ChevronDownIcon } from "@/components/icons";
 import { KIND_NAMES, LABEL_KINDS } from "@/entities/label";
-import { GROUPINGS, type Grouping, type LibraryQuery, libraryHref } from "@/entities/library";
+import { type LibraryQuery, libraryHref } from "@/entities/library";
+import { GroupByNav } from "./group-by-nav";
 
 /** Group by (links, so each view has its own URL) and the type filter. */
 export function LibraryControls({ query }: { query: LibraryQuery }) {
@@ -8,20 +10,7 @@ export function LibraryControls({ query }: { query: LibraryQuery }) {
 		<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
 				<span className="text-sm leading-[18px] font-bold text-graphite">Group by</span>
-				<nav aria-label="Group labels by" className="flex gap-1 rounded-md bg-wash p-1">
-					{(Object.keys(GROUPINGS) as Grouping[]).map((g) => (
-						<Link
-							key={g}
-							href={libraryHref(query, { group: g })}
-							aria-current={g === query.group ? "true" : undefined}
-							className={`flex h-10 flex-1 items-center justify-center rounded-[6px] px-3 text-base sm:flex-none sm:px-4 pointer-coarse:h-12 ${
-								g === query.group ? "bg-ink font-bold text-stock" : "font-medium hover:bg-rule"
-							}`}
-						>
-							{GROUPINGS[g]}
-						</Link>
-					))}
-				</nav>
+				<GroupByNav query={query} />
 			</div>
 			<KindFilter query={query} />
 		</div>
@@ -31,12 +20,13 @@ export function LibraryControls({ query }: { query: LibraryQuery }) {
 function KindFilter({ query }: { query: LibraryQuery }) {
 	return (
 		<details className="group relative">
-			<summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-rule px-4 text-base font-bold hover:border-ink pointer-coarse:h-12 [&::-webkit-details-marker]:hidden">
+			<summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-rule pr-3 pl-4 text-base font-bold transition-colors duration-150 group-open:border-ink hover:border-ink pointer-coarse:h-12 [&::-webkit-details-marker]:hidden">
 				{query.kind ? KIND_NAMES[query.kind] : "All types"}
+				<ChevronDownIcon size={18} className="transition-transform duration-200 ease-out-expo group-open:rotate-180" />
 			</summary>
-			<ul className="absolute right-0 z-10 mt-2 flex w-56 flex-col rounded-md border border-ink bg-stock p-1 md:left-auto">
+			<ul className="absolute right-0 z-10 mt-2 flex w-56 origin-top-right flex-col rounded-md border border-ink bg-stock p-1 animate-[fade-in_160ms_ease-out] md:left-auto">
 				<li>
-					<Link href={libraryHref(query, { kind: undefined })} className="flex h-11 items-center rounded-[6px] px-3 hover:bg-wash">
+					<Link href={libraryHref(query, { kind: undefined })} className="flex h-11 items-center rounded-[6px] px-3 transition-colors duration-150 hover:bg-wash">
 						All types
 					</Link>
 				</li>
@@ -45,7 +35,7 @@ function KindFilter({ query }: { query: LibraryQuery }) {
 						<Link
 							href={libraryHref(query, { kind: k })}
 							aria-current={k === query.kind ? "true" : undefined}
-							className="flex h-11 items-center rounded-[6px] px-3 hover:bg-wash aria-[current]:font-bold"
+							className="flex h-11 items-center rounded-[6px] px-3 transition-colors duration-150 hover:bg-wash aria-[current]:font-bold"
 						>
 							{KIND_NAMES[k]}
 						</Link>

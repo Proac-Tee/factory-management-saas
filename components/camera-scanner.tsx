@@ -89,10 +89,10 @@ export function CameraScanner({ onRead, paused }: { onRead: (value: string) => v
 			<video ref={video} muted playsInline className="h-full w-full object-cover" aria-label="Camera view" />
 			{status === "scanning" && (
 				<div aria-hidden="true" className="pointer-events-none absolute inset-x-[8%] top-1/2 h-[34%] -translate-y-1/2">
-					<span className="absolute top-0 left-0 size-8 rounded-tl-md border-t-4 border-l-4 border-pass" />
-					<span className="absolute top-0 right-0 size-8 rounded-tr-md border-t-4 border-r-4 border-pass" />
-					<span className="absolute bottom-0 left-0 size-8 rounded-bl-md border-b-4 border-l-4 border-pass" />
-					<span className="absolute right-0 bottom-0 size-8 rounded-br-md border-r-4 border-b-4 border-pass" />
+					<Corner className="top-0 left-0" />
+					<Corner className="top-0 right-0 rotate-90" />
+					<Corner className="right-0 bottom-0 rotate-180" />
+					<Corner className="bottom-0 left-0 -rotate-90" />
 					<span className="absolute inset-x-3 top-1/2 h-0.5 bg-pass motion-safe:animate-pulse" />
 				</div>
 			)}
@@ -103,5 +103,14 @@ export function CameraScanner({ onRead, paused }: { onRead: (value: string) => v
 				</p>
 			)}
 		</div>
+	);
+}
+
+/** One bracket of the viewfinder, drawn as the top-left corner and rotated into place. */
+function Corner({ className }: { className: string }) {
+	return (
+		<svg viewBox="0 0 32 32" className={`absolute size-8 text-pass ${className}`} fill="none">
+			<path d="M2 30V10a8 8 0 0 1 8-8h20" stroke="currentColor" strokeWidth={4} strokeLinecap="round" />
+		</svg>
 	);
 }

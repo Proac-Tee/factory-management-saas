@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Field } from "@/components/field";
 import { PlusIcon, XIcon } from "@/components/icons";
+import { segmentClass, useSegmentPill } from "@/components/segment-pill";
 import { Spinner } from "@/components/spinner";
 import { useToast } from "@/components/toast";
 import { button, ErrorLine, labelClass, PageHeader, panelFieldClass } from "@/components/ui";
@@ -58,7 +59,7 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 
 			<div className="flex flex-1">
 				<section aria-label="Allowed list" className="@container min-w-0 flex-1 px-4 pt-2 pb-10 md:px-10 md:pt-6">
-					<div className="hidden h-10 items-center gap-3 border-b border-ink px-3 text-sm leading-[18px] font-bold text-graphite @xl:flex">
+					<div className="hidden h-10 items-center gap-3 border-b border-ink px-3 text-sm leading-[18px] font-bold text-graphite @md:flex">
 						<span className="flex-1">Person</span>
 						<span className="w-[110px] shrink-0">Role</span>
 						<span className="w-[150px] shrink-0 text-right">Status</span>
@@ -76,7 +77,7 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 											setAdding(false);
 											setSelected(row.email);
 										}}
-										className={`flex min-h-16 items-center gap-3 rounded-md py-2 text-left ${
+										className={`flex min-h-16 items-center gap-3 rounded-md py-2 text-left transition-colors duration-150 ${
 											isSelected ? "-mx-3 my-1 w-[calc(100%+24px)] border-2 border-ink px-2.5" : "w-full px-3 hover:bg-wash/60"
 										}`}
 									>
@@ -87,9 +88,9 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 											</span>
 											<span className="truncate text-sm leading-[18px] text-graphite">{row.email}</span>
 										</span>
-										<span className="hidden w-[110px] shrink-0 text-base @xl:block">{ROLE_NAMES[row.role]}</span>
-										<span className={`shrink-0 text-right text-sm leading-[18px] font-bold tabular-nums @xl:w-[150px] ${row.signedUp ? "" : "text-graphite"}`}>
-											<span className="@xl:hidden">{ROLE_NAMES[row.role]}, </span>
+										<span className="hidden w-[110px] shrink-0 text-base @md:block">{ROLE_NAMES[row.role]}</span>
+										<span className={`shrink-0 text-right text-sm leading-[18px] font-bold tabular-nums @md:w-[150px] ${row.signedUp ? "" : "text-graphite"}`}>
+											<span className="@md:hidden">{ROLE_NAMES[row.role]}, </span>
 											{status}
 										</span>
 									</button>
@@ -107,7 +108,7 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 						e.preventDefault();
 						close();
 					}}
-					className="m-0 h-dvh max-h-none w-full max-w-none flex-col overflow-y-auto bg-wash p-0 open:flex tablet:hidden"
+					className="sheet-up m-0 h-dvh max-h-none w-full max-w-none flex-col overflow-y-auto bg-wash p-0 open:flex tablet:hidden"
 				>
 					{panelOpen && panel}
 				</dialog>
@@ -131,21 +132,22 @@ function PanelHead({ title, subtitle, onClose }: { title: string; subtitle?: str
 }
 
 function RolePicker({ value, onChange, disabled }: { value: Role; onChange: (r: Role) => void; disabled?: boolean }) {
+	const { ref, pill, ready } = useSegmentPill<HTMLDivElement>(value);
 	return (
 		<div className="flex flex-col gap-1.5">
 			<span className={labelClass}>Role</span>
-			<div role="radiogroup" aria-label="Role" className="flex gap-1 rounded-md border border-rule bg-stock p-1">
+			<div ref={ref} role="radiogroup" aria-label="Role" className="relative isolate flex gap-1 rounded-md border border-rule bg-stock p-1">
+				{pill}
 				{ROLES.map((role) => (
 					<button
 						key={role}
 						type="button"
 						role="radio"
 						aria-checked={value === role}
+						data-active={value === role || undefined}
 						disabled={disabled}
 						onClick={() => onChange(role)}
-						className={`flex h-11 flex-1 items-center justify-center rounded-[6px] text-base pointer-coarse:h-12 ${
-							value === role ? "bg-ink font-bold text-stock" : "font-medium hover:bg-wash"
-						}`}
+						className={`flex h-11 flex-1 items-center justify-center rounded-[6px] text-base pointer-coarse:h-12 ${segmentClass(value === role, ready).replace("hover:bg-rule", "hover:bg-wash")}`}
 					>
 						{ROLE_NAMES[role]}
 					</button>

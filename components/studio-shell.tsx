@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LinkPending } from "./link-pending";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useRef } from "react";
 import { type Action, can, ROLE_NAMES, type Role } from "@/entities/roles";
@@ -149,7 +150,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 				active ? "bg-ink font-bold text-stock" : "font-medium hover:bg-wash"
 			}`}
 		>
-			{item.icon}
+			<LinkPending icon={item.icon} spinnerSize={20} />
 			{item.label}
 		</Link>
 	);

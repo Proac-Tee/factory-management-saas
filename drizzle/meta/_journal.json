@@ -15,6 +15,27 @@
       "when": 1791811421875,
       "tag": "0001_handle_new_user",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791819617322,
+      "tag": "0002_app_role_function",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791819695423,
+      "tag": "0003_label_studio",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791819702704,
+      "tag": "0004_allowed_list_signup",
+      "breakpoints": true
     }
   ]
 }

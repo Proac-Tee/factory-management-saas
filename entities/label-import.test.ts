@@ -103,3 +103,20 @@ describe("productNameFor", () => {
 		expect(productNameFor("PALLET LABELS 10097", "10097")).toBe("Product 10097");
 	});
 });
+
+describe("barcode pictures", () => {
+	const page = { widthMm: 100, heightMm: 100 };
+	const picture = (decoded: string | null) =>
+		({ kind: "image", xMm: 10, yMm: 60, widthMm: 80, heightMm: 25, decoded }) satisfies OdgItem;
+
+	it("takes the number read from the barcode picture", () => {
+		expect(importLabel("EMBER/ORIGINAL SRP 10145.odg", page, [picture("15060534671000")]).barcode).toBe("15060534671000");
+	});
+
+	it("prefers the picture over a number typed beside it, and ignores misreads", () => {
+		const typed = { kind: "text", xMm: 10, yMm: 90, widthMm: 80, lines: [{ text: "5060534671003", sizePt: 9 }] } satisfies OdgItem;
+		expect(importLabel("X.odg", page, [picture("15060534671000"), typed]).barcode).toBe("15060534671000");
+		expect(importLabel("X.odg", page, [picture("15060534671012"), typed]).barcode).toBe("5060534671003");
+		expect(importLabel("X.odg", page, [picture(null)]).barcode).toBeNull();
+	});
+});

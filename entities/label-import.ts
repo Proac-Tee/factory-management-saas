@@ -15,7 +15,19 @@ import {
 /** A text box or picture on the drawing, in mm from the top left. */
 export type OdgItem =
 	| { kind: "text"; xMm: number; yMm: number; widthMm: number; lines: { text: string; sizePt: number }[] }
-	| { kind: "image"; xMm: number; yMm: number; widthMm: number; heightMm: number };
+	| {
+			kind: "image";
+			xMm: number;
+			yMm: number;
+			widthMm: number;
+			heightMm: number;
+			/** For a barcode picture: the digits read from it, if it could be read. */
+			decoded?: string | null;
+	  };
+
+/** Wide pictures are barcodes; anything squarer is the logo. */
+export const isBarcodePicture = (item: { widthMm: number; heightMm: number }) =>
+	item.heightMm > 0 && item.widthMm / item.heightMm >= 1.8;
 
 export type ImportedLabel = {
 	name: string;
@@ -151,16 +163,19 @@ type Row = { yMm: number; sizePt: number; texts: { xMm: number; text: string }[]
 export const toDesign = (
 	page: { widthMm: number; heightMm: number },
 	items: OdgItem[],
-): { design: LabelDesign; barcodeFromText: string | null } => {
+): { design: LabelDesign; barcode: string | null } => {
 	const rows: Row[] = [];
 	const blocks: { yMm: number; part: LabelPart }[] = [];
 	let barcodeFromText: string | null = null;
+	let barcodeFromPicture: string | null = null;
 	let barcodeNumberPt = 0;
 
 	for (const item of items) {
 		if (item.kind === "image") {
-			// Wide pictures are barcodes; anything squarer is the logo.
-			const isBarcode = item.widthMm / item.heightMm >= 1.8;
+			const isBarcode = isBarcodePicture(item);
+			// The old files hold the barcode as a picture; its number is read from it.
+			const read = isBarcode && item.decoded ? checkGtin(item.decoded) : null;
+			if (read?.ok && !barcodeFromPicture) barcodeFromPicture = read.gtin;
 			blocks.push({
 				yMm: item.yMm,
 				part: isBarcode
@@ -229,7 +244,8 @@ export const toDesign = (
 		gapMm: small ? 0.5 : 1,
 		parts: parts.slice(0, LIMITS.parts),
 	};
-	return { design: shrinkToFit(design), barcodeFromText };
+	// What the bars say wins over a number typed beside them.
+	return { design: shrinkToFit(design), barcode: barcodeFromPicture ?? barcodeFromText };
 };
 
 /**
@@ -264,14 +280,14 @@ export const importLabel = (
 	items: OdgItem[],
 ): ImportedLabel => {
 	const texts = items.flatMap((i) => (i.kind === "text" ? i.lines.map((l) => l.text) : []));
-	const { design, barcodeFromText } = toDesign(page, items);
+	const { design, barcode } = toDesign(page, items);
 	return {
 		name: nameFor(path),
 		customer: customerFor(path),
 		kind: kindFor(path),
 		sku: skuFor(path, texts),
 		storage: storageFor(texts),
-		barcode: barcodeFromText,
+		barcode,
 		design,
 	};
 };

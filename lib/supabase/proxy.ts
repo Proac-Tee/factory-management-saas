@@ -2,8 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "./env";
 
-const PROTECTED_PREFIXES = ["/dashboard"];
-const AUTH_PAGES = ["/login", "/signup"];
+const PROTECTED_PREFIXES = ["/labels", "/scan", "/access", "/reset-password"];
+const AUTH_PAGES = ["/login", "/signup", "/forgot-password"];
 
 // Carry refreshed session cookies and cache headers onto a redirect.
 const redirectWithCookies = (url: URL, from: NextResponse) => {
@@ -52,7 +52,7 @@ export const updateSession = async (request: NextRequest) => {
 	const isAuthPage = AUTH_PAGES.includes(pathname);
 	if ((!isSignedIn && isProtected) || (isSignedIn && isAuthPage)) {
 		const url = request.nextUrl.clone();
-		url.pathname = isSignedIn ? "/dashboard" : "/login";
+		url.pathname = isSignedIn ? "/labels" : "/login";
 		url.search = "";
 		return redirectWithCookies(url, supabaseResponse);
 	}

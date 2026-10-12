@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Ember thermal-print tokens, from the Paper file "Ember – Factory OS".
+ * Ink on white stock. Colour only ever means status: pass, due, hold.
+ */
+@theme {
+	--color-stock: #ffffff;
+	--color-wash: #f2f2f2;
+	--color-rule: #d9d9d9;
+	--color-graphite: #4a4a4a;
+	--color-ink: #000000;
+	--color-pass: #0e7a3e;
+	--color-due: #ffdd00;
+	--color-hold: #c8102e;
+
+	--text-sm: 14px;
+	--text-base: 16px;
+	--text-lg: 20px;
+	--text-xl: 28px;
+	--text-2xl: 44px;
+	--text-code: 72px;
+
+	--tracking-tight: -0.02em;
+
+	--breakpoint-tablet: 1180px;
+	--spacing-tap: 56px;
+	--radius-md: 8px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+	--font-sans: var(--font-archivo), system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+	background: var(--color-stock);
+	color: var(--color-ink);
+}
+
+@layer base {
+	/* Tailwind v4 leaves buttons with the arrow cursor. */
+	button:not(:disabled),
+	[role="button"]:not([aria-disabled="true"]),
+	summary,
+	label:has(input[type="radio"]),
+	label:has(input[type="checkbox"]) {
+		cursor: pointer;
+	}
+
+	:focus-visible {
+		outline: 3px solid var(--color-ink);
+		outline-offset: 3px;
+	}
+	::selection {
+		background: var(--color-ink);
+		color: var(--color-stock);
+	}
+	input {
+		caret-color: var(--color-ink);
+	}
+}
+
+/* Printing a label: only the label, at its real size. The page size comes
+   from the label (an inline @page rule on the print screen). */
+.print-only {
+	display: none;
+}
+@media print {
+	.no-print {
+		display: none !important;
+	}
+	.print-only {
+		display: block;
+	}
+	body {
+		background: white;
+	}
 }

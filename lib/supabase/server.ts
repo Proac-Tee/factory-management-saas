@@ -1,9 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "./env";
 
 // Create a new client per request; never share one across requests.
 export const createClient = async () => {
+	// Supabase reads the clock (session expiry), which Next can't prerender.
+	await connection();
 	const cookieStore = await cookies();
 
 	return createServerClient(supabaseUrl, supabasePublishableKey, {

@@ -1,9 +1,8 @@
+import type { Metadata } from "next";
 import { AuthForm } from "../auth-form";
 
+export const metadata: Metadata = { title: "Create your password" };
+
 export default function Page() {
-	return (
-		<main className="flex flex-1 items-center justify-center p-6">
-			<AuthForm mode="signup" />
-		</main>
-	);
+	return <AuthForm mode="signup" />;
 }

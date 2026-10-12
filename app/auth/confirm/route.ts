@@ -9,9 +9,9 @@ export async function GET(request: NextRequest) {
 	const code = searchParams.get("code");
 	const tokenHash = searchParams.get("token_hash");
 	const type = searchParams.get("type") as EmailOtpType | null;
-	const next = searchParams.get("next") ?? "/dashboard";
+	const next = searchParams.get("next") ?? "/labels";
 	// Only allow same-site relative paths to avoid an open redirect.
-	const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+	const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/labels";
 
 	const supabase = await createClient();
 	const { error } = code

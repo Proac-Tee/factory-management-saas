@@ -1,0 +1,13 @@
+ALTER POLICY "allowed_emails_select" ON "allowed_emails" TO authenticated USING ((select private.has_role('admin')) or "allowed_emails"."email" = lower((select auth.jwt() ->> 'email')));--> statement-breakpoint
+ALTER POLICY "allowed_emails_insert" ON "allowed_emails" TO authenticated WITH CHECK ((select private.has_role('admin')) and "allowed_emails"."added_by" = (select auth.uid()));--> statement-breakpoint
+ALTER POLICY "allowed_emails_update" ON "allowed_emails" TO authenticated USING ((select private.has_role('admin'))) WITH CHECK ((select private.has_role('admin')));--> statement-breakpoint
+ALTER POLICY "allowed_emails_delete" ON "allowed_emails" TO authenticated USING ((select private.has_role('admin')));--> statement-breakpoint
+ALTER POLICY "label_checks_select" ON "label_checks" TO authenticated USING ((select private.has_role('admin', 'editor', 'operator')));--> statement-breakpoint
+ALTER POLICY "label_checks_insert" ON "label_checks" TO authenticated WITH CHECK ((select private.has_role('admin', 'editor', 'operator')) and "label_checks"."checked_by" = (select auth.uid()));--> statement-breakpoint
+ALTER POLICY "labels_select" ON "labels" TO authenticated USING ((select private.has_role('admin', 'editor', 'operator')));--> statement-breakpoint
+ALTER POLICY "labels_insert" ON "labels" TO authenticated WITH CHECK ((select private.has_role('admin', 'editor')) and "labels"."created_by" = (select auth.uid()) and "labels"."updated_by" = (select auth.uid()));--> statement-breakpoint
+ALTER POLICY "labels_update" ON "labels" TO authenticated USING ((select private.has_role('admin', 'editor'))) WITH CHECK ((select private.has_role('admin', 'editor')) and "labels"."updated_by" = (select auth.uid()));--> statement-breakpoint
+ALTER POLICY "products_select" ON "products" TO authenticated USING ((select private.has_role('admin', 'editor', 'operator')));--> statement-breakpoint
+ALTER POLICY "products_insert" ON "products" TO authenticated WITH CHECK ((select private.has_role('admin', 'editor')) and "products"."created_by" = (select auth.uid()) and "products"."updated_by" = (select auth.uid()));--> statement-breakpoint
+ALTER POLICY "products_update" ON "products" TO authenticated USING ((select private.has_role('admin', 'editor'))) WITH CHECK ((select private.has_role('admin', 'editor')) and "products"."updated_by" = (select auth.uid()));--> statement-breakpoint
+ALTER POLICY "profiles_select_team" ON "profiles" TO authenticated USING ((select private.has_role('admin', 'editor', 'operator')));

@@ -36,7 +36,7 @@ export type Member = {
 export const getMember = cache(async (): Promise<Member> => {
 	const user = await getCurrentUser();
 	const member = await findMember(user.claims);
-	if (!member) redirect("/login?removed=1");
+	if (!member) redirect("/auth/removed");
 	return { ...member, claims: user.claims };
 });
 

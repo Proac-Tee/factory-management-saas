@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { isAllowed } from "@/data-access/members";
 import { newPasswordSchema, resetRequestSchema, signInSchema, signUpSchema } from "@/entities/account";
 import { firstIssue, formFields } from "@/entities/validation";
+import { siteOrigin } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState =
@@ -55,7 +56,7 @@ export async function signup(_: AuthState, formData: FormData): Promise<AuthStat
 		};
 	}
 
-	const origin = (await headers()).get("origin");
+	const origin = siteOrigin((await headers()).get("origin"));
 	const supabase = await createClient();
 	const { data, error } = await supabase.auth.signUp({
 		...credentials,
@@ -86,7 +87,7 @@ export async function requestReset(_: AuthState, formData: FormData): Promise<Au
 	const parsed = resetRequestSchema.safeParse(form);
 	if (!parsed.success) return failure(parsed.error, form);
 	const { email } = parsed.data;
-	const origin = (await headers()).get("origin");
+	const origin = siteOrigin((await headers()).get("origin"));
 	const supabase = await createClient();
 	await supabase.auth.resetPasswordForEmail(email, {
 		redirectTo: `${origin}/auth/confirm?next=/reset-password`,

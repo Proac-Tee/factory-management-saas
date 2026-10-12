@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // The label studio is the app for now.
+  async redirects() {
+    return [{ source: "/", destination: "/labels", permanent: false }];
+  },
   experimental: {
     agentFeedback: true,
   },

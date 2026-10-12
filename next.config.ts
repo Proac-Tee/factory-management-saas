@@ -5,9 +5,6 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/", destination: "/labels", permanent: false }];
   },
-  experimental: {
-    agentFeedback: true,
-  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

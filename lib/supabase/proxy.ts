@@ -2,6 +2,20 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "./env";
 
+const PROTECTED_PREFIXES = ["/dashboard"];
+const AUTH_PAGES = ["/login", "/signup"];
+
+// Carry refreshed session cookies and cache headers onto a redirect.
+const redirectWithCookies = (url: URL, from: NextResponse) => {
+	const response = NextResponse.redirect(url);
+	from.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+	from.headers.forEach((value, key) => {
+		if (key !== "set-cookie" && !key.startsWith("x-middleware-"))
+			response.headers.set(key, value);
+	});
+	return response;
+};
+
 export const updateSession = async (request: NextRequest) => {
 	let supabaseResponse = NextResponse.next({ request });
 
@@ -30,17 +44,21 @@ export const updateSession = async (request: NextRequest) => {
 	// validates the JWT and refreshes an expired session. Removing it can
 	// randomly log users out.
 	const { data } = await supabase.auth.getClaims();
-	const user = data?.claims;
+	const isSignedIn = Boolean(data?.claims);
 
-	// Gate protected routes here once auth pages exist, e.g.:
-	// if (!user && !request.nextUrl.pathname.startsWith("/login")) {
-	// 	const url = request.nextUrl.clone();
-	// 	url.pathname = "/login";
-	// 	return NextResponse.redirect(url);
-	// }
-	void user;
+	// Optimistic redirects only; pages still verify via lib/auth.ts.
+	const { pathname } = request.nextUrl;
+	const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+	const isAuthPage = AUTH_PAGES.includes(pathname);
+	if ((!isSignedIn && isProtected) || (isSignedIn && isAuthPage)) {
+		const url = request.nextUrl.clone();
+		url.pathname = isSignedIn ? "/dashboard" : "/login";
+		url.search = "";
+		return redirectWithCookies(url, supabaseResponse);
+	}
 
 	// Return supabaseResponse as-is. If you build a different response, copy
-	// its cookies over, or the browser and server sessions will drift apart.
+	// its cookies over (see redirectWithCookies), or the browser and server
+	// sessions will drift apart.
 	return supabaseResponse;
 };

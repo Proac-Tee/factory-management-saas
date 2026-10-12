@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Supabase + Drizzle setup
+
+1. Copy `.env.example` to `.env.local` and fill in the values from your Supabase project
+   (API keys for the `NEXT_PUBLIC_*` vars; **Connect → ORMs → Drizzle** for `DATABASE_URL`).
+2. Apply migrations: `pnpm db:migrate`.
+3. In Supabase **Auth → URL Configuration**, add `http://localhost:3000/auth/confirm`
+   (and your production URL) to the redirect allow list.
+
+Schema changes: edit `lib/db/schema.ts`, then run `pnpm db:generate` and `pnpm db:migrate`.
+For SQL Drizzle can't express (triggers, functions), use `pnpm db:generate --custom --name <name>`.
+
+Querying data:
+
+- `withRls(claims, (tx) => ...)` from `lib/db/rls.ts` runs as the signed-in user, so RLS policies apply. Use it for user-facing queries.
+- `db` from `lib/db` connects as `postgres` and **bypasses RLS**. Use it only for trusted server-side work.
+- Get the current user with `getCurrentUser()` from `lib/auth.ts`. It verifies the JWT and redirects to `/login` when signed out.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

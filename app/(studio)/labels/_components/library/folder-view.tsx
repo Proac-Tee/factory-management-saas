@@ -24,11 +24,17 @@ export function FolderView({ library, query, canEdit }: { library: FolderLibrary
 					<Link
 						href={libraryHref(query, { folder: undefined, q: "", kind: undefined })}
 						aria-current={!open && !results ? "page" : undefined}
-						className="flex h-10 items-center gap-2 rounded-[6px] px-2 text-base font-bold hover:bg-wash aria-[current]:bg-ink aria-[current]:text-stock"
+						className="flex h-10 items-center gap-2 rounded-[6px] px-2 text-base font-bold transition-colors duration-150 hover:bg-wash aria-[current]:bg-ink aria-[current]:text-stock"
 					>
 						All folders
 					</Link>
 					<TreeLevel nodes={tree} query={query} openIds={openIds} openId={open?.id ?? null} depth={0} />
+					{tree.length === 0 && (
+						<p className="mt-2 border-t border-rule px-2 pt-4 text-sm leading-5 text-graphite">
+							No folders yet.{" "}
+							{canEdit ? "Make one with New folder, or upload a folder of labels and its folders come with it." : "Every label sits at the top of the library."}
+						</p>
+					)}
 				</div>
 			</nav>
 
@@ -61,7 +67,7 @@ export function FolderView({ library, query, canEdit }: { library: FolderLibrary
 									<li key={folder.id} className="border-b border-rule">
 										<Link
 											href={libraryHref(query, { folder: folder.id })}
-											className="group flex min-h-14 items-center gap-3 py-2.5 pr-1 hover:bg-wash"
+											className="group flex min-h-14 items-center gap-3 py-2.5 pr-1 transition-colors duration-150 hover:bg-wash"
 										>
 											<FolderIcon size={22} className="shrink-0" />
 											<span className="min-w-0 flex-1 truncate text-base leading-5 font-bold group-hover:underline">{folder.name}</span>
@@ -129,7 +135,7 @@ function TreeLevel({
 							href={libraryHref(query, { folder: node.id, q: "", kind: undefined })}
 							aria-current={current ? "page" : undefined}
 							style={{ paddingLeft: `${8 + depth * 16}px` }}
-							className="flex min-h-10 items-center gap-2 rounded-[6px] pr-2 text-base hover:bg-wash aria-[current]:bg-ink aria-[current]:font-bold aria-[current]:text-stock"
+							className="flex min-h-10 items-center gap-2 rounded-[6px] pr-2 text-base transition-colors duration-150 hover:bg-wash aria-[current]:bg-ink aria-[current]:font-bold aria-[current]:text-stock"
 						>
 							{expanded ? <FolderOpenIcon size={18} className="shrink-0" /> : <FolderIcon size={18} className="shrink-0" />}
 							<span className="min-w-0 flex-1 truncate">{node.name}</span>

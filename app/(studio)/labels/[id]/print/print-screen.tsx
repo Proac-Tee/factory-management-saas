@@ -21,12 +21,15 @@ export function PrintScreen({ label, design, fields }: { label: LabelFull; desig
 	const [values, setValues] = useState<FieldValues>({});
 	const [copies, setCopies] = useState(1);
 	const [tried, setTried] = useState(false);
+	/** Bumped after each print, so the preview feeds out again like the label that just printed. */
+	const [printed, setPrinted] = useState(0);
 	const missing = fields.filter((key) => !values[key]?.trim());
 
 	const print = () => {
 		setTried(true);
 		if (missing.length > 0) return;
 		window.print();
+		setPrinted((n) => n + 1);
 	};
 
 	return (
@@ -62,7 +65,7 @@ export function PrintScreen({ label, design, fields }: { label: LabelFull; desig
 									autoComplete="off"
 									onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value.toUpperCase() }))}
 									error={tried && !values[key]?.trim() ? `Enter the ${field.name.toLowerCase()} printed on this run.` : undefined}
-									className="h-tap w-full rounded-t-md border-b-2 border-ink bg-wash px-4 text-xl font-black tracking-wide tabular-nums uppercase outline-none placeholder:font-medium placeholder:tracking-normal placeholder:normal-case placeholder:text-graphite focus-visible:ring-2 focus-visible:ring-ink aria-invalid:border-hold"
+									className="h-tap w-full rounded-t-md inset-shadow-[0_-2px_0_var(--color-ink)] bg-wash px-4 text-xl font-black tracking-wide tabular-nums uppercase outline-none placeholder:font-medium placeholder:tracking-normal placeholder:normal-case placeholder:text-graphite focus-visible:ring-2 focus-visible:ring-ink aria-invalid:inset-shadow-[0_-2px_0_var(--color-hold)]"
 								/>
 							);
 						})}
@@ -123,7 +126,7 @@ export function PrintScreen({ label, design, fields }: { label: LabelFull; desig
 						</div>
 					</div>
 
-					<Preview design={design} barcode={label.barcode} values={values} />
+					<Preview key={printed} design={design} barcode={label.barcode} values={values} />
 				</div>
 			</div>
 
@@ -141,8 +144,10 @@ export function PrintScreen({ label, design, fields }: { label: LabelFull; desig
 
 function Preview({ design, barcode, values }: { design: LabelDesign; barcode: string | null; values: FieldValues }) {
 	return (
-		<section aria-label="Preview" className="flex flex-col items-center gap-4 border-b border-rule bg-wash px-4 py-6 md:px-10 tablet:flex-1 tablet:border-b-0 tablet:border-l tablet:py-10">
-			<ScaledLabel design={design} barcode={barcode} values={values} maxScale={6} minHeightPx={560} maxHeightPx={560} className="max-w-[600px]" />
+		<section aria-label="Preview" className="flex flex-col items-center gap-4 overflow-hidden border-b border-rule bg-wash px-4 py-6 md:px-10 tablet:flex-1 tablet:border-b-0 tablet:border-l tablet:py-10">
+			<div className="feed flex w-full justify-center">
+				<ScaledLabel design={design} barcode={barcode} values={values} maxScale={6} minHeightPx={560} maxHeightPx={560} className="max-w-[600px]" />
+			</div>
 			<p className="text-center text-sm leading-5 text-graphite">What prints, to scale. Empty fields show an example until you fill them in.</p>
 		</section>
 	);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type DragEvent, useId, useMemo, useState } from "react";
 import { Segmented } from "@/components/controls";
-import { AlertTriangleIcon, CheckIcon, FolderIcon, UploadIcon } from "@/components/icons";
+import { AlertTriangleIcon, CheckIcon, ChevronDownIcon, FolderIcon, FolderOpenIcon, UploadIcon } from "@/components/icons";
 import { LabelRender } from "@/components/label-render";
 import { Spinner } from "@/components/spinner";
 import { button, fieldClass, labelClass, PageHeader } from "@/components/ui";
@@ -98,11 +98,13 @@ function Choose({
 				}}
 				onDragLeave={() => setOver(false)}
 				onDrop={drop}
-				className={`flex min-h-[300px] flex-col items-center justify-center gap-5 rounded-md border-2 border-dashed px-6 py-10 text-center ${
+				className={`flex min-h-[300px] flex-col items-center justify-center gap-5 rounded-md border-2 border-dashed px-6 py-10 text-center transition-colors duration-200 ${
 					over ? "border-ink bg-wash" : "border-rule"
 				}`}
 			>
-				<FolderIcon size={40} />
+				<span className={`transition-transform duration-300 ease-out-expo motion-reduce:transition-none ${over ? "-translate-y-1 scale-110" : ""}`}>
+					{over ? <FolderOpenIcon size={40} /> : <FolderIcon size={40} />}
+				</span>
 				<div className="flex flex-col gap-2">
 					<p className="text-xl leading-7 font-black tracking-tight">Drag a folder of labels here</p>
 					<p className="max-w-[52ch] text-base leading-normal text-graphite">
@@ -140,14 +142,22 @@ function Choose({
 				<label htmlFor={destination} className={labelClass}>
 					Put the folders in
 				</label>
-				<select id={destination} value={parentId} onChange={(e) => onParent(e.target.value)} className={`${fieldClass} cursor-pointer`}>
-					<option value={TOP}>The top of the library</option>
-					{folders.map((f) => (
-						<option key={f.id} value={f.id}>
-							{f.label}
-						</option>
-					))}
-				</select>
+				<div className="relative">
+					<select
+						id={destination}
+						value={parentId}
+						onChange={(e) => onParent(e.target.value)}
+						className={`${fieldClass} cursor-pointer appearance-none pr-12 text-base font-bold`}
+					>
+						<option value={TOP}>The top of the library</option>
+						{folders.map((f) => (
+							<option key={f.id} value={f.id}>
+								{f.label}
+							</option>
+						))}
+					</select>
+					<ChevronDownIcon size={20} className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2" />
+				</div>
 				<p className="text-sm leading-5 text-graphite">
 					Only LibreOffice Draw files (.odg) are read. Lock files, shortcuts and other files are left out.
 				</p>

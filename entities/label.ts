@@ -144,6 +144,10 @@ export type DesignCheck = { ok: true; design: LabelDesign } | { ok: false; messa
 
 export const isPlaced = (design: LabelDesign): design is PlacedDesign => "layout" in design && design.layout === "placed";
 
+/** True when the design shows a barcode but the label has no number for it yet. */
+export const needsBarcodeNumber = (design: LabelDesign, barcode: string | null): boolean =>
+	!barcode && design.parts.some((part) => part.kind === "barcode" && part.visible);
+
 /** Parses a design of either layout; a problem with one part is told as "Part 3: …". */
 export const parseDesign = (value: unknown): DesignCheck => {
 	const placed = typeof value === "object" && value !== null && (value as { layout?: unknown }).layout === "placed";

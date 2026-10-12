@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkDetails, checkFit, fieldsUsed, fillText, newDesign, parseDesign } from "./label";
+import { checkDetails, checkFit, fieldsUsed, fillText, needsBarcodeNumber, newDesign, parseDesign } from "./label";
 
 describe("newDesign", () => {
 	it("fits a 100 x 100 mm label and passes its own checks", () => {
@@ -116,5 +116,18 @@ describe("checkDetails", () => {
 	it("needs a product name when the label has a SKU", () => {
 		expect(checkDetails({ ...ok, productName: "  " })).toMatchObject({ ok: false, field: "productName" });
 		expect(checkDetails({ ...ok, sku: " 10145a " })).toMatchObject({ ok: true, details: { sku: "10145A" } });
+	});
+});
+
+describe("needsBarcodeNumber", () => {
+	it("flags a shown barcode with no number", () => {
+		expect(needsBarcodeNumber(newDesign(), null)).toBe(true);
+		expect(needsBarcodeNumber(newDesign(), "05012345678900")).toBe(false);
+	});
+
+	it("ignores a hidden barcode", () => {
+		const design = newDesign();
+		const hidden = { ...design, parts: design.parts.map((p) => (p.kind === "barcode" ? { ...p, visible: false } : p)) };
+		expect(needsBarcodeNumber(hidden, null)).toBe(false);
 	});
 });

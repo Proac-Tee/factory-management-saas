@@ -13,7 +13,7 @@ export function Barcode({ gtin, heightMm }: { gtin: string | null; heightMm: num
 				className="flex w-full items-center justify-center border-2 border-dashed border-rule px-2 text-center text-graphite"
 				style={{ height: mm(heightMm), fontSize: mm(3) }}
 			>
-				Add the barcode number in Details
+				<span className="barcode-missing-note">Add the barcode number in Details</span>
 			</div>
 		);
 	}

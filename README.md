@@ -57,6 +57,7 @@ http://127.0.0.1:55324.
 | `pnpm db:migrate`          | Apply migrations                                     |
 | `pnpm access:allow`        | Put an email on the allowed list with a role         |
 | `pnpm labels:import <dir>` | Import `.odg` labels (`--dry-run` to preview)        |
+| `pnpm labels:reset`        | Delete all labels and products (`--yes` to confirm)  |
 
 ## Where things are
 
@@ -96,6 +97,14 @@ there renames it on all its labels. **Type** and **Size** give flat views.
 The print screen sets the page to the label's size (`@page`) and prints
 through the browser to the PC's label printer driver. Set the printer's
 paper size to the label size (e.g. 100 × 100 mm, no margins) once.
+
+## Barcode numbers on imported labels
+
+The old labels hold the barcode as a picture. The importer reads the number
+from the bars with ZXing (the same reader as the scan screen) and prints
+which labels it couldn't read and why: a vector picture (SVG/WMF/EMF), a
+linked picture, or no barcode found. Fill those in on the label's Details
+tab. To start again: `pnpm labels:reset --yes`, then import.
 
 ## Scanning
 

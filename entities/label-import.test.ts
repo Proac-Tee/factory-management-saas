@@ -6,6 +6,7 @@ import {
 	kindFor,
 	nameFor,
 	type OdgItem,
+	gtinFromScan,
 	productNameFor,
 	skuFor,
 	storageFor,
@@ -118,5 +119,21 @@ describe("barcode pictures", () => {
 		expect(importLabel("X.odg", page, [picture("15060534671000"), typed]).barcode).toBe("15060534671000");
 		expect(importLabel("X.odg", page, [picture("15060534671012"), typed]).barcode).toBe("5060534671003");
 		expect(importLabel("X.odg", page, [picture(null)]).barcode).toBeNull();
+	});
+});
+
+describe("gtinFromScan", () => {
+	it("finds the product number in each kind of barcode", () => {
+		expect(gtinFromScan("15060534671000")).toBe("15060534671000"); // ITF-14
+		expect(gtinFromScan("5060534671003")).toBe("5060534671003"); // EAN-13
+		expect(gtinFromScan("(01)15060534671000(17)271012(10)AN1210601")).toBe("15060534671000"); // GS1-128
+		expect(gtinFromScan("0115060534671000172710121" + "0AN1210601")).toBe("15060534671000"); // GS1-128, raw
+		expect(gtinFromScan("506053467100")).toBeNull(); // UPC-A with a bad check digit
+	});
+
+	it("ignores what isn't a product number", () => {
+		expect(gtinFromScan("X001ABCDEF")).toBeNull(); // Amazon FNSKU
+		expect(gtinFromScan("(00)350605346710000017")).toBeNull(); // pallet SSCC
+		expect(gtinFromScan("15060534671012")).toBeNull(); // wrong check digit
 	});
 });

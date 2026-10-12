@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useToast } from "@/components/toast";
 import { checkGtin } from "@/entities/gtin";
 import { checkFit, type DetailsField, type LabelDesign, type LabelDetailsInput, type LabelPart } from "@/entities/label";
 import { addPart, applyPreset, movePart, newPart, removePart, updatePart } from "@/entities/label-edit";
@@ -9,7 +11,8 @@ import { saveLabelAction } from "../../actions";
 import { useTooWide } from "./use-too-wide";
 
 export type Tab = "parts" | "details";
-export type SaveState = { error?: string; field?: DetailsField | "design"; saved?: boolean };
+/** A save problem tied to a field, shown next to it. */
+export type FieldError = { field: DetailsField | "design"; message: string } | null;
 
 const detailsOf = (label: EditorView["label"]): LabelDetailsInput => ({
 	name: label?.name ?? "",
@@ -32,8 +35,21 @@ export function useLabelEditor({ label, design: initialDesign, products }: Edito
 	const [tab, setTab] = useState<Tab>("parts");
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [dirty, setDirty] = useState(false);
-	const [result, setResult] = useState<SaveState>(justSaved ? { saved: true } : {});
+	const [fieldError, setFieldError] = useState<FieldError>(null);
 	const [saving, startSaving] = useTransition();
+	const toast = useToast();
+	const router = useRouter();
+	const pathname = usePathname();
+
+	// A new label is saved on the server, which then opens it here with
+	// ?saved=new: say so once, and drop the flag so a refresh doesn't repeat it.
+	const announced = useRef(false);
+	useEffect(() => {
+		if (!justSaved || announced.current) return;
+		announced.current = true;
+		toast.show("Label created");
+		router.replace(pathname, { scroll: false });
+	}, [justSaved, toast, router, pathname]);
 
 	// Warn before leaving with unsaved changes.
 	useEffect(() => {
@@ -45,7 +61,7 @@ export function useLabelEditor({ label, design: initialDesign, products }: Edito
 
 	const touched = () => {
 		setDirty(true);
-		setResult({});
+		setFieldError(null);
 	};
 	const changeDesign = (next: LabelDesign) => {
 		setDesign(next);
@@ -80,20 +96,51 @@ export function useLabelEditor({ label, design: initialDesign, products }: Edito
 		touched();
 	};
 
-	const save = () =>
+	const gtin = details.barcode.trim() ? checkGtin(details.barcode) : null;
+	const sku = details.sku.trim().toUpperCase();
+	/** The product the typed SKU belongs to, if it exists already. */
+	const product = sku ? (products.find((p) => p.sku === sku) ?? null) : null;
+	const productName = details.productName.trim().replace(/\s+/g, " ");
+	const renamesProduct = product !== null && productName !== "" && productName !== product.name;
+
+	const save = () => {
+		if (saving) return;
 		startSaving(async () => {
 			const saved = await saveLabelAction({ id: label?.id ?? null, details, design });
 			if (saved.ok) {
 				setDirty(false);
-				setResult({ saved: true });
+				toast.show(
+					renamesProduct
+						? `Label saved. Product renamed on ${product.labelCount === 1 ? "its label" : `all ${product.labelCount} labels`}.`
+						: "Label saved",
+				);
+				return;
+			}
+			if (saved.field) {
+				setFieldError({ field: saved.field, message: saved.message });
+				if (saved.field !== "design") setTab("details");
+				toast.show(saved.field === "design" ? saved.message : "Couldn't save. Check the highlighted field.", { tone: "problem" });
 			} else {
-				setResult({ error: saved.message, field: saved.field });
-				if (saved.field && saved.field !== "design") setTab("details");
+				toast.show(saved.message, { tone: "problem" });
 			}
 		});
+	};
 
-	const gtin = details.barcode.trim() ? checkGtin(details.barcode) : null;
-	const sku = details.sku.trim().toUpperCase();
+	// Ctrl/⌘+S saves, as in every other editor.
+	const saveRef = useRef(save);
+	useEffect(() => {
+		saveRef.current = save;
+	});
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+				e.preventDefault();
+				saveRef.current();
+			}
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, []);
 
 	return {
 		design,
@@ -102,14 +149,14 @@ export function useLabelEditor({ label, design: initialDesign, products }: Edito
 		setTab,
 		selectedId,
 		dirty,
-		result,
+		fieldError,
 		saving,
 		fit: checkFit(design),
 		tooWide: useTooWide(design),
 		gtin,
 		previewBarcode: gtin?.ok ? gtin.gtin : null,
-		/** The product the typed SKU belongs to, if it exists already. */
-		product: sku ? (products.find((p) => p.sku === sku) ?? null) : null,
+		product,
+		renamesProduct,
 		parts,
 		size: {
 			change: changeDesign,

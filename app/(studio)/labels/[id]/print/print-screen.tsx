@@ -6,7 +6,7 @@ import { Field } from "@/components/field";
 import { ArrowLeftIcon, MinusIcon, PlusIcon, PrinterIcon, ScanIcon } from "@/components/icons";
 import { LabelRender } from "@/components/label-render";
 import { ScaledLabel } from "@/components/scaled-label";
-import { ErrorLine, outlineButton, PageHeader, primaryButton } from "@/components/ui";
+import { button, ErrorLine, PageHeader } from "@/components/ui";
 import type { LabelFull } from "@/use-cases/labels";
 import { FIELDS, type FieldKey, type FieldValues, KIND_NAMES, type LabelDesign } from "@/entities/label";
 
@@ -106,12 +106,12 @@ export function PrintScreen({ label, design, fields }: { label: LabelFull; desig
 						)}
 
 						<div className="flex flex-col gap-3 pt-2">
-							<button type="button" onClick={print} className={`${primaryButton} h-16 w-full text-lg`}>
+							<button type="button" onClick={print} className={`${button({ size: "xl" })} w-full`}>
 								<PrinterIcon size={22} />
 								Print {copies} {copies === 1 ? "label" : "labels"}
 							</button>
 							{label.barcode && (
-								<Link href={`/scan?mode=check&label=${label.id}`} className={`${outlineButton} h-tap w-full`}>
+								<Link href={`/scan?mode=check&label=${label.id}`} className={`${button({ variant: "outline" })} w-full`}>
 									<ScanIcon size={20} />
 									Check a printed label
 								</Link>

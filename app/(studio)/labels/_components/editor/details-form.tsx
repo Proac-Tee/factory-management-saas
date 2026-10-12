@@ -25,15 +25,15 @@ const STORAGE_OPTIONS = [
  * own details. Renaming a product here renames it on all its labels.
  */
 export function DetailsForm({ editor, view }: { editor: LabelEditorState; view: EditorView }) {
-	const { details, changeDetail, result, gtin, product } = editor;
+	const { details, changeDetail, fieldError, gtin, product, renamesProduct } = editor;
 	const { label, canEdit, customers, products } = view;
 	const customerList = useId();
 	const productList = useId();
-	const errorFor = (field: DetailsField) => (result.field === field ? result.error : undefined);
+	const errorFor = (field: DetailsField) => (fieldError?.field === field ? fieldError.message : undefined);
 	const hasSku = details.sku.trim() !== "";
 
 	return (
-		<fieldset disabled={!canEdit} className="flex flex-col gap-7">
+		<fieldset disabled={!canEdit} className="flex min-w-0 flex-col gap-7">
 			<legend className="sr-only">Details and group</legend>
 
 			<section aria-labelledby="group-heading" className="flex flex-col gap-5">
@@ -89,7 +89,7 @@ export function DetailsForm({ editor, view }: { editor: LabelEditorState; view: 
 						className={washField}
 					/>
 				</div>
-				<ProductHint hasSku={hasSku} product={product} typedName={details.productName} />
+				<ProductHint hasSku={hasSku} product={product} renames={renamesProduct} />
 
 				<Chips label="Type" value={details.kind} options={KIND_OPTIONS} onChange={(kind) => changeDetail("kind", kind)} />
 			</section>
@@ -148,11 +148,11 @@ export function DetailsForm({ editor, view }: { editor: LabelEditorState; view: 
 function ProductHint({
 	hasSku,
 	product,
-	typedName,
+	renames,
 }: {
 	hasSku: boolean;
 	product: LabelEditorState["product"];
-	typedName: string;
+	renames: boolean;
 }) {
 	if (!hasSku) {
 		return (
@@ -165,10 +165,9 @@ function ProductHint({
 		return <p className="-mt-2 text-sm leading-5 text-graphite">A new product. Its labels will group under this name.</p>;
 	}
 	const others = product.labelCount;
-	const renamed = typedName.trim().replace(/\s+/g, " ") !== product.name;
 	return (
-		<p className={`-mt-2 text-sm leading-5 ${renamed ? "font-bold" : "text-graphite"}`}>
-			{renamed
+		<p className={`-mt-2 text-sm leading-5 ${renames ? "font-bold" : "text-graphite"}`}>
+			{renames
 				? `Saving renames “${product.name}” on ${others === 1 ? "its label" : `all ${others} of its labels`}.`
 				: `${others === 1 ? "1 label is" : `${others} labels are`} filed under this product.`}
 		</p>

@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Field } from "@/components/field";
 import { PlusIcon, XIcon } from "@/components/icons";
-import { ErrorLine, labelClass, PageHeader, panelFieldClass, primaryButton, SavedLine } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { button, ErrorLine, labelClass, PageHeader, panelFieldClass } from "@/components/ui";
 import { ACTION_NAMES, ACTIONS, can, ROLE_NAMES, ROLES, type Role } from "@/entities/roles";
 import { whenShort } from "@/lib/format";
 import type { AccessResult, AccessRow } from "@/use-cases/access";
@@ -47,7 +48,7 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 						setSelected(null);
 						setAdding(true);
 					}}
-					className={`${primaryButton} h-12 pointer-coarse:h-14`}
+					className={button({ size: "md" })}
 				>
 					<PlusIcon size={18} strokeWidth={2.5} />
 					Allow an email
@@ -186,6 +187,16 @@ function RoleGuide() {
 function AddPanel({ onClose }: { onClose: () => void }) {
 	const [state, action, pending] = useActionState<AccessResult | null, FormData>(allowEmailAction, null);
 	const [role, setRole] = useState<Role>("operator");
+	const toast = useToast();
+
+	// Added: say so once and close; the new row is already in the list.
+	const shown = useRef<AccessResult | null>(null);
+	useEffect(() => {
+		if (!state?.ok || shown.current === state) return;
+		shown.current = state;
+		toast.show(state.message);
+		onClose();
+	}, [state, toast, onClose]);
 	return (
 		<form action={action} className="flex flex-1 flex-col gap-5 px-4 py-5 md:px-8 md:py-7">
 			<PanelHead title="Allow an email" subtitle="They create their own password" onClose={onClose} />
@@ -205,8 +216,7 @@ function AddPanel({ onClose }: { onClose: () => void }) {
 			<Permissions role={role} />
 			<div className="mt-auto flex flex-col gap-3 pt-2">
 				{state && !state.ok && state.field !== "email" && <ErrorLine message={state.message} />}
-				{state?.ok && <SavedLine>{state.message}</SavedLine>}
-				<button type="submit" disabled={pending} className={`${primaryButton} w-full`}>
+				<button type="submit" disabled={pending} className={`${button()} w-full`}>
 					{pending ? "Adding…" : "Allow this email"}
 				</button>
 				<p className="text-sm leading-5 text-graphite">Then tell them to open the app and choose Create your password.</p>
@@ -217,8 +227,8 @@ function AddPanel({ onClose }: { onClose: () => void }) {
 
 function PersonPanel({ person, isMe, onClose }: { person: AccessRow; isMe: boolean; onClose: () => void }) {
 	const [role, setRole] = useState<Role>(person.role);
-	const [result, setResult] = useState<AccessResult | null>(null);
 	const [confirming, setConfirming] = useState(false);
+	const toast = useToast();
 	const [busy, start] = useTransition();
 	const name = person.name ?? person.email;
 
@@ -233,12 +243,15 @@ function PersonPanel({ person, isMe, onClose }: { person: AccessRow; isMe: boole
 					setRole(next);
 					start(async () => {
 						const saved = await changeRoleAction(person.email, next);
-						setResult(saved);
-						if (!saved.ok) setRole(previous);
+						if (saved.ok) {
+							toast.show(`${name} is now an ${ROLE_NAMES[next].toLowerCase()}`);
+						} else {
+							setRole(previous);
+							toast.show(saved.message, { tone: "problem" });
+						}
 					});
 				}}
 			/>
-			{result && (result.ok ? <SavedLine>{result.message}</SavedLine> : <ErrorLine message={result.message} />)}
 			<Permissions role={role} />
 
 			{!isMe && (
@@ -255,7 +268,7 @@ function PersonPanel({ person, isMe, onClose }: { person: AccessRow; isMe: boole
 									onClick={() =>
 										start(async () => {
 											const removed = await removeAccessAction(person.email);
-											setResult(removed);
+											toast.show(removed.message, { tone: removed.ok ? "done" : "problem" });
 											if (removed.ok) onClose();
 										})
 									}

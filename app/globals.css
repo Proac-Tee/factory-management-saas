@@ -60,6 +60,14 @@ body {
 	}
 }
 
+/* Toasts rise from the bottom; skipped for people who reduce motion (motion-safe). */
+@keyframes toast-in {
+	from {
+		transform: translateY(8px);
+		opacity: 0;
+	}
+}
+
 /* Printing a label: only the label, at its real size. The page size comes
    from the label (an inline @page rule on the print screen). */
 .print-only {

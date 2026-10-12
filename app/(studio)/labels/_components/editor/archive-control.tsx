@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { Spinner } from "@/components/spinner";
 import { useToast } from "@/components/toast";
 import { archiveLabelAction } from "../../actions";
 
@@ -29,8 +30,9 @@ export function ArchiveControl({ id, archived }: { id: string; archived: boolean
 			type="button"
 			disabled={saving}
 			onClick={() => setArchived(!archived)}
-			className={`h-12 w-fit text-base font-bold underline underline-offset-2 disabled:text-graphite ${archived ? "" : "text-hold"}`}
+			className={`inline-flex h-12 w-fit items-center gap-2 text-base font-bold underline underline-offset-2 disabled:text-graphite ${archived ? "" : "text-hold"}`}
 		>
+			{saving && <Spinner />}
 			{saving ? "Saving…" : archived ? "Restore this label" : "Archive this label"}
 		</button>
 	);

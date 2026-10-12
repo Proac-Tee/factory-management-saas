@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { AlertTriangleIcon, CheckIcon, ChevronRightIcon, KeyboardIcon, PrinterIcon, ScanIcon } from "@/components/icons";
+import { Spinner } from "@/components/spinner";
 import { button, ErrorLine, fieldClass, PageHeader } from "@/components/ui";
 import { BARCODE_KIND_NAMES, checkGtin } from "@/entities/gtin";
 import { time } from "@/lib/format";
@@ -119,6 +120,7 @@ export function ScanScreen({ mode, label }: { mode: Mode; label: CheckLabel | nu
 										className={`${fieldClass} min-w-0 flex-1 tabular-nums`}
 									/>
 									<button type="submit" disabled={pending} className={button()}>
+										{pending && <Spinner />}
 										{mode === "find" ? "Find" : "Check"}
 									</button>
 								</div>
@@ -140,7 +142,8 @@ export function ScanScreen({ mode, label }: { mode: Mode; label: CheckLabel | nu
 				)}
 
 				{pending && (
-					<p role="status" className="text-base text-graphite">
+					<p role="status" className="flex items-center gap-2.5 text-base font-bold text-graphite">
+						<Spinner className="text-ink" />
 						Looking it up…
 					</p>
 				)}

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Field } from "@/components/field";
 import { PlusIcon, XIcon } from "@/components/icons";
+import { Spinner } from "@/components/spinner";
 import { useToast } from "@/components/toast";
 import { button, ErrorLine, labelClass, PageHeader, panelFieldClass } from "@/components/ui";
 import { ACTION_NAMES, ACTIONS, can, ROLE_NAMES, ROLES, type Role } from "@/entities/roles";
@@ -217,6 +218,7 @@ function AddPanel({ onClose }: { onClose: () => void }) {
 			<div className="mt-auto flex flex-col gap-3 pt-2">
 				{state && !state.ok && state.field !== "email" && <ErrorLine message={state.message} />}
 				<button type="submit" disabled={pending} className={`${button()} w-full`}>
+					{pending && <Spinner />}
 					{pending ? "Adding…" : "Allow this email"}
 				</button>
 				<p className="text-sm leading-5 text-graphite">Then tell them to open the app and choose Create your password.</p>
@@ -272,8 +274,9 @@ function PersonPanel({ person, isMe, onClose }: { person: AccessRow; isMe: boole
 											if (removed.ok) onClose();
 										})
 									}
-									className="h-12 flex-1 rounded-md bg-hold px-3 font-bold text-stock disabled:bg-rule"
+									className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-md bg-hold px-3 font-bold text-stock disabled:bg-rule"
 								>
+									{busy && <Spinner />}
 									{busy ? "Removing…" : "Remove access"}
 								</button>
 								<button type="button" onClick={() => setConfirming(false)} className="h-12 flex-1 rounded-md border border-ink font-bold">

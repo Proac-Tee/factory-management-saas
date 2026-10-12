@@ -300,7 +300,10 @@ function Preview({
 								<div className="flex flex-col gap-0.5">
 									<span className="text-base leading-5 font-bold break-words">{l.name}</span>
 									<span className="text-sm leading-[18px] text-graphite tabular-nums">
-										{[KIND_NAMES[l.kind], sizeName(l.design), l.barcode ?? "No barcode"].join(", ")}
+										{[KIND_NAMES[l.kind], sizeName(l.design)].join(", ")}
+									</span>
+									<span className={`text-sm leading-[18px] tabular-nums ${l.barcode ? "text-graphite" : "font-bold"}`}>
+										{l.barcode ?? "No barcode number yet"}
 									</span>
 									{l.exists && (
 										<span className="text-sm leading-[18px] font-bold">{replace ? "Replaces the one in the library" : "In the library; skipped"}</span>

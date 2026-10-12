@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type ReactNode, useId, useState, useTransition } from "react";
-import { FolderPlusIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { FolderPlusIcon, FolderSymlinkIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { Spinner } from "@/components/spinner";
 import { useToast } from "@/components/toast";
 import { button, ErrorLine, fieldClass, labelClass } from "@/components/ui";
@@ -82,6 +82,7 @@ export function FolderTools({
 								Rename
 							</button>
 							<button type="button" className={tool} aria-expanded={mode === "move"} onClick={() => switchTo("move")}>
+								<FolderSymlinkIcon size={18} />
 								Move
 							</button>
 							<button type="button" className={`${tool} text-hold`} disabled={saving} onClick={remove}>

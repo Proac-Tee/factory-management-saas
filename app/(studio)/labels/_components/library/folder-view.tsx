@@ -46,22 +46,21 @@ export function FolderView({ library, query, canEdit }: { library: FolderLibrary
 						)}
 
 						{folders.length > 0 && (
-							<ul className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+							<ul className="grid border-t border-ink lg:grid-cols-2 lg:gap-x-8">
 								{folders.map((folder) => (
-									<li key={folder.id}>
+									<li key={folder.id} className="border-b border-rule">
 										<Link
 											href={libraryHref(query, { folder: folder.id })}
-											className="flex min-h-16 items-center gap-3 rounded-md border border-rule px-4 py-3 hover:border-ink"
+											className="group flex min-h-14 items-center gap-3 py-2.5 pr-1 hover:bg-wash"
 										>
-											<FolderIcon size={24} className="shrink-0" />
-											<span className="flex min-w-0 flex-col">
-												<span className="truncate text-base leading-5 font-bold">{folder.name}</span>
-												<span className="text-sm leading-[18px] text-graphite tabular-nums">
-													{folder.children.length > 0 &&
-														`${folder.children.length} ${folder.children.length === 1 ? "folder" : "folders"}, `}
-													{countText(folder.totalCount)}
-												</span>
+											<FolderIcon size={22} className="shrink-0" />
+											<span className="min-w-0 flex-1 truncate text-base leading-5 font-bold group-hover:underline">{folder.name}</span>
+											<span className="shrink-0 text-sm leading-[18px] text-graphite tabular-nums">
+												{folder.children.length > 0 &&
+													`${folder.children.length} ${folder.children.length === 1 ? "folder" : "folders"}, `}
+												{countText(folder.totalCount)}
 											</span>
+											<ChevronRightIcon size={18} className="shrink-0 text-graphite" />
 										</Link>
 									</li>
 								))}

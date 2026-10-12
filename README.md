@@ -100,6 +100,15 @@ share its SKU, so an SRP, shipper and pallet label sit side by side under one
 product name (the `products` table); labels with no SKU go under **General**.
 **Type** and **Size** give flat views. Search covers every folder.
 
+## Downloading labels
+
+A label's page has **Download PDF**; a folder has **Download folder** (at
+the top level, **Download all**), which gives a zip of PDFs in the same
+sub-folders, including every folder inside it. The browser draws each label
+with the same renderer the print page uses, at 600 dpi on a page of the
+label's true size (`lib/label-pdf.ts`). Batch, BBE and quantity come out as
+blank lines to write on, never example values.
+
 ## Uploading LibreOffice labels
 
 **Labels → Upload** (editors and admins). Drag in a folder, or choose one.

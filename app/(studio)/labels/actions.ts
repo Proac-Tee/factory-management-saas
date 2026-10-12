@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createFolder, deleteFolder, type FolderResult, moveFolder, moveLabelToFolder, renameFolder } from "@/use-cases/folders";
-import { type SaveResult, saveLabel, setArchived } from "@/use-cases/labels";
+import { getFolderDownload, type SaveResult, saveLabel, setArchived } from "@/use-cases/labels";
 
 // Thin wrappers: the use-cases check permission and parse the input. These
 // only refresh the pages that show what changed.
@@ -56,4 +56,10 @@ export async function moveLabelAction(input: { labelId: string; folderId: string
 		revalidatePath(`/labels/${input.labelId}`);
 	}
 	return result;
+}
+
+// ─── Downloading ─────────────────────────────────────────────────────────────
+
+export async function folderDownloadAction(folderId: string | null) {
+	return getFolderDownload(folderId);
 }

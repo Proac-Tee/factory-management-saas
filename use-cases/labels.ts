@@ -14,7 +14,7 @@ import {
 	setLabelArchived,
 } from "@/data-access/labels";
 import { listFolders } from "@/data-access/folders";
-import { buildTree, type FolderNode, folderOptions, type FolderRow, pathTo } from "@/entities/folders";
+import { buildTree, type FolderNode, folderOptions, type FolderRow, pathTo, withDescendants } from "@/entities/folders";
 import { BARCODE_KIND_NAMES, checkGtin } from "@/entities/gtin";
 import {
 	checkDetails,
@@ -291,4 +291,35 @@ export const checkPrintedLabel = async (input: unknown): Promise<CheckResult> =>
 		checkedAt: saved.checkedAt,
 		checkedBy: member.name,
 	};
+};
+
+// ─── Downloading ─────────────────────────────────────────────────────────────
+
+export type DownloadLabel = { name: string; folderPath: string[]; design: LabelDesign; barcode: string | null };
+export type FolderDownload = { ok: true; zipName: string; labels: DownloadLabel[] } | { ok: false; message: string };
+
+/**
+ * Every label in a folder and the folders inside it, each with its path from
+ * that folder, for a zip. No folder: the whole library.
+ */
+export const getFolderDownload = async (input: unknown): Promise<FolderDownload> => {
+	const member = await requireMember("use-labels");
+	const folderId = idSchema.nullable().safeParse(input);
+	if (!folderId.success) return { ok: false, message: "That folder wasn't found. Refresh the page." };
+	const [labels, rows] = await Promise.all([listLabels(member.claims), listFolders(member.claims)]);
+	const top = folderId.data;
+	if (top && !rows.some((r) => r.id === top)) return { ok: false, message: "That folder isn't there any more. Refresh the page." };
+	const inside = top ? withDescendants(rows, top) : null;
+	const depth = top ? pathTo(rows, top).length : 0;
+	const chosen = labels
+		.filter((l) => (inside ? l.folderId !== null && inside.has(l.folderId) : true))
+		.map((l) => ({
+			name: l.name,
+			folderPath: pathTo(rows, l.folderId).slice(depth).map((f) => f.name),
+			design: readDesign({ ...l, updatedByName: null, archived: false }),
+			barcode: l.barcode,
+		}))
+		.sort((a, b) => [...a.folderPath, a.name].join("/").localeCompare([...b.folderPath, b.name].join("/"), "en-GB", { numeric: true }));
+	const zipName = top ? (rows.find((r) => r.id === top)?.name ?? "Labels") : "Labels";
+	return { ok: true, zipName, labels: chosen };
 };

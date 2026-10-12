@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { DownloadButton } from "@/components/download-button";
 import { PrinterIcon } from "@/components/icons";
 import { Spinner } from "@/components/spinner";
 import { button, ErrorLine, PageHeader } from "@/components/ui";
@@ -38,6 +39,14 @@ export function LabelEditor({ view, justSaved }: { view: EditorView; justSaved: 
 						<span role="status" className="w-full text-sm leading-5 font-bold whitespace-nowrap text-graphite md:w-auto">
 							Unsaved changes
 						</span>
+					)}
+					{label && (
+						<DownloadButton
+							kind="label"
+							size="md"
+							label={{ name: label.name, design: view.design, barcode: label.barcode }}
+							className="flex-1 sm:flex-none"
+						/>
 					)}
 					{label && (
 						<Link href={`/labels/${label.id}/print`} className={`${button({ variant: "outline", size: "md" })} flex-1 sm:flex-none`}>

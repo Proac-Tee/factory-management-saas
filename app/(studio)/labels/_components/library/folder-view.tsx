@@ -4,6 +4,8 @@ import { folderOptions, type FolderNode } from "@/entities/folders";
 import { KIND_NAMES } from "@/entities/label";
 import { type LibraryQuery, libraryHref, sizeName } from "@/entities/library";
 import type { FolderView as FolderLibrary } from "@/use-cases/labels";
+import { DownloadButton } from "@/components/download-button";
+import { folderDownloadAction } from "../../actions";
 import { FolderTools } from "./folder-tools";
 import { FlatSection, LabelGrid } from "./label-groups";
 
@@ -38,11 +40,19 @@ export function FolderView({ library, query, canEdit }: { library: FolderLibrary
 				) : (
 					<>
 						{canEdit ? (
-							<FolderTools open={open} parentId={path.at(-2)?.id ?? null} moveTo={moveTargets(tree, path)}>
+							<FolderTools
+								open={open}
+								parentId={path.at(-2)?.id ?? null}
+								moveTo={moveTargets(tree, path)}
+								download={<DownloadButton kind="folder" folderId={open?.id ?? null} load={folderDownloadAction} />}
+							>
 								<Breadcrumbs path={path} query={query} />
 							</FolderTools>
 						) : (
-							<Breadcrumbs path={path} query={query} />
+							<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+								<Breadcrumbs path={path} query={query} />
+								<DownloadButton kind="folder" folderId={open?.id ?? null} load={folderDownloadAction} className="w-fit" />
+							</div>
 						)}
 
 						{folders.length > 0 && (

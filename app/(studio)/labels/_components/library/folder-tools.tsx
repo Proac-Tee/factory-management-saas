@@ -19,11 +19,14 @@ export function FolderTools({
 	open,
 	parentId,
 	moveTo,
+	download,
 	children,
 }: {
 	open: { id: string; name: string } | null;
 	parentId: string | null;
 	moveTo: Option[];
+	/** The download button, first in the row. */
+	download: ReactNode;
 	/** What sits beside the buttons (the folder path). */
 	children: ReactNode;
 }) {
@@ -71,6 +74,7 @@ export function FolderTools({
 			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 				{children}
 				<div className="flex flex-wrap gap-2">
+					{download}
 					<button type="button" className={tool} aria-expanded={mode === "new"} onClick={() => switchTo("new")}>
 						<FolderPlusIcon size={18} />
 						New folder

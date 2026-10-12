@@ -21,9 +21,25 @@ export type OdgItem =
 			yMm: number;
 			widthMm: number;
 			heightMm: number;
-			/** For a barcode picture: the digits read from it, if it could be read. */
+			/** For a barcode picture: the text read from its bars, if any. */
 			decoded?: string | null;
 	  };
+
+/**
+ * The product number (GTIN) in what a barcode reader returned, or null if
+ * it holds none. EAN-13 and ITF-14 are the number itself; GS1-128 and
+ * DataBar carry it after the (01) application identifier; UPC-A is a
+ * GTIN-13 with a leading 0. Amazon FNSKUs and pallet SSCCs (00) aren't
+ * product numbers.
+ */
+export const gtinFromScan = (text: string): string | null => {
+	const ai01 = /\(01\)(\d{14})/.exec(text) ?? /^\]?[A-Za-z]?\d?01(\d{14})/.exec(text.replace(/[\s\x1d]/g, ""));
+	const digits = ai01 ? ai01[1] : text.replace(/\s+/g, "");
+	const candidate = /^\d{12}$/.test(digits) ? `0${digits}` : digits;
+	if (!/^\d{13,14}$/.test(candidate)) return null;
+	const check = checkGtin(candidate);
+	return check.ok ? check.gtin : null;
+};
 
 /** Wide pictures are barcodes; anything squarer is the logo. */
 export const isBarcodePicture = (item: { widthMm: number; heightMm: number }) =>
@@ -174,8 +190,8 @@ export const toDesign = (
 		if (item.kind === "image") {
 			const isBarcode = isBarcodePicture(item);
 			// The old files hold the barcode as a picture; its number is read from it.
-			const read = isBarcode && item.decoded ? checkGtin(item.decoded) : null;
-			if (read?.ok && !barcodeFromPicture) barcodeFromPicture = read.gtin;
+			const read = isBarcode && item.decoded ? gtinFromScan(item.decoded) : null;
+			if (read && !barcodeFromPicture) barcodeFromPicture = read;
 			blocks.push({
 				yMm: item.yMm,
 				part: isBarcode

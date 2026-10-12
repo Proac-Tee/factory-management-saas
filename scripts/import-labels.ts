@@ -19,7 +19,7 @@ import postgres from "postgres";
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
 import { z } from "zod";
 import { checkDetails, parseDesign } from "../entities/label";
-import { importLabel, isBarcodePicture, type OdgItem, productNameFor } from "../entities/label-import";
+import { gtinFromScan, importLabel, isBarcodePicture, type OdgItem, productNameFor } from "../entities/label-import";
 import { databaseUrl } from "../lib/env";
 
 const { values, positionals } = parseArgs({
@@ -197,26 +197,43 @@ prepareZXingModule({
 type Unread =
 	| "the picture is a vector drawing (SVG/WMF/EMF), which can't be read"
 	| "the picture is linked, not saved inside the file"
-	| "no barcode was found in the picture";
+	| "no barcode was found in the picture"
+	| "the barcode holds no product number (e.g. an Amazon FNSKU or pallet SSCC)";
 
 const READABLE = /\.(png|jpe?g|gif|bmp|tiff?)$/i;
 
-/** Reads each barcode picture in place (item.decoded); returns why one couldn't be read. */
-const readBarcodePictures = async (pictures: Picture[], files: Record<string, Uint8Array>): Promise<Unread | null> => {
-	let unread: Unread | null = null;
+/**
+ * Reads each barcode picture in place (item.decoded). Any 1D barcode type,
+ * turned or inverted. Returns why one gave no product number, with what was
+ * read when it was something else.
+ */
+const readBarcodePictures = async (
+	pictures: Picture[],
+	files: Record<string, Uint8Array>,
+): Promise<{ reason: Unread; found?: string } | null> => {
+	let unread: { reason: Unread; found?: string } | null = null;
 	for (const { item, href } of pictures.filter((p) => isBarcodePicture(p.item))) {
 		const bytes = files[href];
 		if (!bytes) {
-			unread ??= "the picture is linked, not saved inside the file";
+			unread ??= { reason: "the picture is linked, not saved inside the file" };
 			continue;
 		}
 		if (!READABLE.test(href)) {
-			unread ??= "the picture is a vector drawing (SVG/WMF/EMF), which can't be read";
+			unread ??= { reason: "the picture is a vector drawing (SVG/WMF/EMF), which can't be read" };
 			continue;
 		}
-		const [found] = await readBarcodes(bytes, { formats: ["ITF", "EAN-13"], tryHarder: true });
-		item.decoded = found?.isValid ? found.text : null;
-		if (!item.decoded) unread ??= "no barcode was found in the picture";
+		const results = (
+			await readBarcodes(bytes, { formats: ["Linear-Codes"], tryHarder: true, tryRotate: true, tryInvert: true, maxNumberOfSymbols: 4 })
+		).filter((r) => r.isValid);
+		const withNumber = results.find((r) => gtinFromScan(r.text));
+		item.decoded = withNumber?.text ?? null;
+		if (withNumber) continue;
+		unread ??= results.length
+			? {
+					reason: "the barcode holds no product number (e.g. an Amazon FNSKU or pallet SSCC)",
+					found: results.map((r) => `${r.format} ${r.text}`).join(", "),
+				}
+			: { reason: "no barcode was found in the picture" };
 	}
 	return unread;
 };
@@ -249,7 +266,10 @@ const main = async () => {
 			const { page, items, pictures, files } = readOdg(file);
 			const unread = await readBarcodePictures(pictures, files);
 			const label = importLabel(source, page, items);
-			if (!label.barcode && unread) missing.set(unread, [...(missing.get(unread) ?? []), source]);
+			if (!label.barcode && unread) {
+				const example = unread.found ? `${source}  (read: ${unread.found})` : source;
+				missing.set(unread.reason, [...(missing.get(unread.reason) ?? []), example]);
+			}
 			const design = parseDesign(label.design);
 			if (!design.ok) throw new Error(design.message);
 			// The same rules the editor applies, so imported labels can be saved as they are.
@@ -298,7 +318,7 @@ const main = async () => {
 	console.log(
 		withoutNumber === 0
 			? "Every barcode picture was read."
-			: `\n${withoutNumber} labels have a barcode picture but no number yet:`,
+			: `\n${withoutNumber === 1 ? "1 label has" : `${withoutNumber} labels have`} a barcode picture but no number yet:`,
 	);
 	for (const [reason, files] of missing) {
 		console.log(`  ${files.length}: ${reason}. For example:`);

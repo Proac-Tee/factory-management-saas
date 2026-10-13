@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAllowed } from "@/data-access/members";
-import { newPasswordSchema, resetRequestSchema, signInSchema, signUpSchema } from "@/entities/account";
+import { newPasswordSchema, resetRequestSchema, signInSchema, signUpProblem, signUpSchema } from "@/entities/account";
 import { firstIssue, formFields } from "@/entities/validation";
 import { siteOrigin } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
@@ -67,11 +67,9 @@ export async function signup(_: AuthState, formData: FormData): Promise<AuthStat
 		},
 	});
 	if (error) {
-		const exists = /already registered|already exists/i.test(error.message);
-		return {
-			error: exists ? "You already have an account. Sign in instead." : "Your account couldn't be created. Try again.",
-			email: credentials.email,
-		};
+		// The real reason, for the server logs (Vercel → Logs); the person gets it in plain words.
+		console.error("Sign-up failed", { code: error.code, status: error.status, message: error.message });
+		return { error: signUpProblem(error).message, email: credentials.email };
 	}
 
 	// With email confirmation off, Supabase signs the user in immediately.

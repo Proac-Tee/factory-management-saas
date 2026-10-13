@@ -56,7 +56,12 @@ const main = async () => {
 			await tx`delete from auth.users where lower(coalesce(email, '')) <> ${keep.data}`;
 			await tx`delete from public.allowed_emails where email <> ${keep.data}`;
 		});
-		console.log("\nDeleted. Add people again in the app (People and access), then they choose a password.");
+		// Show what's left, so it's plain nothing was missed.
+		const left = await sql<{ email: string | null }[]>`select email from auth.users order by email`;
+		const leftAllowed = await sql<{ email: string; role: string }[]>`select email, role from public.allowed_emails order by email`;
+		console.log(`\nDeleted. Accounts left: ${left.map((u) => u.email ?? "(no email)").join(", ") || "none"}.`);
+		console.log(`Allowed list now: ${leftAllowed.map((a) => `${a.email} (${a.role})`).join(", ") || "empty"}.`);
+		console.log("Add people again in the app (People and access), then they choose a password.");
 	} finally {
 		await sql.end();
 	}

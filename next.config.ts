@@ -23,7 +23,24 @@ const nextConfig: NextConfig = {
   },
   // The label studio is the app for now.
   async redirects() {
-    return [{ source: "/", destination: "/labels", permanent: false }];
+    return [
+      // An email link that lands on the home page (Supabase falls back to its
+      // Site URL when the link's return address isn't on its allowed list)
+      // still finishes signing in: the code goes on to /auth/confirm.
+      {
+        source: "/",
+        has: [{ type: "query", key: "code" }],
+        destination: "/auth/confirm?next=/labels",
+        permanent: false,
+      },
+      {
+        source: "/",
+        has: [{ type: "query", key: "token_hash" }],
+        destination: "/auth/confirm?next=/labels",
+        permanent: false,
+      },
+      { source: "/", destination: "/labels", permanent: false },
+    ];
   },
   cacheComponents: true,
   experimental: {

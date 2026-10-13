@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Field } from "@/components/field";
-import { PlusIcon, XIcon } from "@/components/icons";
+import { CheckIcon, PlusIcon, XIcon } from "@/components/icons";
 import { segmentClass, useSegmentPill } from "@/components/segment-pill";
 import { Spinner } from "@/components/spinner";
 import { useToast } from "@/components/toast";
@@ -10,7 +10,7 @@ import { button, ErrorLine, labelClass, PageHeader, panelFieldClass } from "@/co
 import { ACTION_NAMES, ACTIONS, can, ROLE_NAMES, ROLES, type Role } from "@/entities/roles";
 import { whenShort } from "@/lib/format";
 import type { AccessResult, AccessRow } from "@/use-cases/access";
-import { allowEmailAction, changeRoleAction, removeAccessAction } from "./actions";
+import { allowEmailAction, changeRoleAction, removeAccessAction, resetPasswordAction } from "./actions";
 
 /** The allowed list and roles (Paper: "Desktop – People and access"). */
 export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: string }) {
@@ -67,7 +67,7 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 					<ul>
 						{rows.map((row) => {
 							const isSelected = row.email === selected;
-							const status = row.signedUp ? (row.lastSignInAt ? `Signed in ${whenShort(row.lastSignInAt)}` : "Signed up") : "Waiting";
+							const status = row.lastSignInAt ? `Signed in ${whenShort(row.lastSignInAt)}` : row.signedUp ? "Not signed in yet" : "No account";
 							return (
 								<li key={row.email} className="border-b border-rule">
 									<button
@@ -83,7 +83,7 @@ export function AccessScreen({ rows, myEmail }: { rows: AccessRow[]; myEmail: st
 									>
 										<span className="flex min-w-0 flex-1 flex-col gap-0.5">
 											<span className={`truncate text-base leading-5 font-bold ${row.signedUp ? "" : "text-graphite"}`}>
-												{row.name ?? (row.signedUp ? row.email.split("@")[0] : "Not signed up yet")}
+												{row.name ?? row.email.split("@")[0]}
 												{row.email === myEmail && <span className="font-medium text-graphite"> (you)</span>}
 											</span>
 											<span className="truncate text-sm leading-[18px] text-graphite">{row.email}</span>
@@ -181,7 +181,8 @@ function RoleGuide() {
 				</div>
 			))}
 			<p className="text-sm leading-5 text-graphite">
-				Only emails on this list can create a password. Removing an email signs that person out on their next click.
+				Only people on this list can sign in. Adding someone gives you a temporary password to hand them; they choose their own when
+				they first sign in. Removing someone signs them out on their next click.
 			</p>
 		</div>
 	);
@@ -192,17 +193,29 @@ function AddPanel({ onClose }: { onClose: () => void }) {
 	const [role, setRole] = useState<Role>("operator");
 	const toast = useToast();
 
-	// Added: say so once and close; the new row is already in the list.
+	// Added: say so once; without a temporary password to show, close.
 	const shown = useRef<AccessResult | null>(null);
 	useEffect(() => {
 		if (!state?.ok || shown.current === state) return;
 		shown.current = state;
 		toast.show(state.message);
-		onClose();
+		if (!state.temporaryPassword) onClose();
 	}, [state, toast, onClose]);
+
+	if (state?.ok && state.temporaryPassword) {
+		return (
+			<div className="flex flex-1 flex-col gap-5 px-4 py-5 md:px-8 md:py-7">
+				<PanelHead title="Account made" subtitle={state.message} onClose={onClose} />
+				<TemporaryPassword password={state.temporaryPassword} />
+				<button type="button" onClick={onClose} className={`${button()} mt-auto w-full`}>
+					Done
+				</button>
+			</div>
+		);
+	}
 	return (
 		<form action={action} className="flex flex-1 flex-col gap-5 px-4 py-5 md:px-8 md:py-7">
-			<PanelHead title="Allow an email" subtitle="They create their own password" onClose={onClose} />
+			<PanelHead title="Allow an email" subtitle="You'll get a temporary password to give them" onClose={onClose} />
 			<Field
 				label="Work email"
 				name="email"
@@ -221,9 +234,9 @@ function AddPanel({ onClose }: { onClose: () => void }) {
 				{state && !state.ok && state.field !== "email" && <ErrorLine message={state.message} />}
 				<button type="submit" disabled={pending} className={`${button()} w-full`}>
 					{pending && <Spinner />}
-					{pending ? "Adding…" : "Allow this email"}
+					{pending ? "Adding…" : "Allow and make account"}
 				</button>
-				<p className="text-sm leading-5 text-graphite">Then tell them to open the app and choose Create your password.</p>
+				<p className="text-sm leading-5 text-graphite">No email is sent. You hand them the temporary password yourself.</p>
 			</div>
 		</form>
 	);
@@ -232,9 +245,18 @@ function AddPanel({ onClose }: { onClose: () => void }) {
 function PersonPanel({ person, isMe, onClose }: { person: AccessRow; isMe: boolean; onClose: () => void }) {
 	const [role, setRole] = useState<Role>(person.role);
 	const [confirming, setConfirming] = useState(false);
+	const [newPassword, setNewPassword] = useState<string | null>(null);
 	const toast = useToast();
 	const [busy, start] = useTransition();
+	const [resetting, startReset] = useTransition();
 	const name = person.name ?? person.email;
+
+	const reset = () =>
+		startReset(async () => {
+			const result = await resetPasswordAction(person.email);
+			if (result.ok && result.temporaryPassword) setNewPassword(result.temporaryPassword);
+			else toast.show(result.message, { tone: "problem" });
+		});
 
 	return (
 		<div className="flex flex-1 flex-col gap-5 px-4 py-5 md:px-8 md:py-7">
@@ -257,6 +279,24 @@ function PersonPanel({ person, isMe, onClose }: { person: AccessRow; isMe: boole
 				}}
 			/>
 			<Permissions role={role} />
+
+			{!isMe && person.signedUp && (
+				<div className="flex flex-col gap-3 border-t border-rule pt-4">
+					{newPassword ? (
+						<TemporaryPassword password={newPassword} />
+					) : (
+						<>
+							<p className="text-sm leading-5 text-graphite">
+								Forgotten their password? Give them a temporary one. Their old password stops working and they&apos;re signed out.
+							</p>
+							<button type="button" disabled={resetting} onClick={reset} className={`${button({ variant: "outline", size: "sm" })} w-fit`}>
+								{resetting && <Spinner />}
+								{resetting ? "Resetting…" : "Reset password"}
+							</button>
+						</>
+					)}
+				</div>
+			)}
 
 			{!isMe && (
 				<div className="mt-auto flex flex-col gap-2 pt-2">
@@ -293,6 +333,35 @@ function PersonPanel({ person, isMe, onClose }: { person: AccessRow; isMe: boole
 					)}
 				</div>
 			)}
+		</div>
+	);
+}
+
+/** A temporary password, shown once, with a copy button. */
+function TemporaryPassword({ password }: { password: string }) {
+	const [copied, setCopied] = useState(false);
+	const toast = useToast();
+	const copy = async () => {
+		try {
+			await navigator.clipboard.writeText(password);
+			setCopied(true);
+		} catch {
+			toast.show("Couldn't copy. Select the password and copy it instead.", { tone: "problem" });
+		}
+	};
+	return (
+		<div className="flex flex-col gap-3 rounded-md border-2 border-ink bg-stock p-4">
+			<span className={labelClass}>Temporary password</span>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<output className="font-mono text-2xl leading-8 font-bold tracking-wide select-all">{password}</output>
+				<button type="button" onClick={copy} className={button({ variant: "outline", size: "sm" })}>
+					{copied ? <CheckIcon size={18} strokeWidth={2.5} /> : null}
+					{copied ? "Copied" : "Copy"}
+				</button>
+			</div>
+			<p className="text-sm leading-5 text-graphite">
+				Give it to them yourself. They sign in with their email and this password, then choose their own. It isn&apos;t shown again.
+			</p>
 		</div>
 	);
 }

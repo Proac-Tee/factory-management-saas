@@ -40,6 +40,10 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       { source: "/", destination: "/labels", permanent: false },
+      // No email for now: admins make accounts with a temporary password and
+      // reset forgotten ones in People and access.
+      { source: "/signup", destination: "/login", permanent: false },
+      { source: "/forgot-password", destination: "/login", permanent: false },
     ];
   },
   cacheComponents: true,

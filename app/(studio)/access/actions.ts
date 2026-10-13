@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { formFields } from "@/entities/validation";
-import { type AccessResult, allowEmail, changeRole, removeAccess } from "@/use-cases/access";
+import { type AccessResult, allowEmail, changeRole, removeAccess, resetPassword } from "@/use-cases/access";
 
 // Thin wrappers: the use-cases check permission and parse the input.
 
@@ -21,4 +21,8 @@ export async function changeRoleAction(email: string, role: string) {
 
 export async function removeAccessAction(email: string) {
 	return after(await removeAccess(email));
+}
+
+export async function resetPasswordAction(email: string) {
+	return after(await resetPassword(email));
 }

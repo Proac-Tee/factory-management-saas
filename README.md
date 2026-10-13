@@ -29,7 +29,9 @@ The same rules are enforced twice: in the app (`entities/roles.ts`,
    connect from most networks.
 3. `pnpm db:migrate`
 4. Add the first admin: `pnpm access:allow --email you@example.com --role admin`,
-   then open the app and choose **Create your password**.
+   then make their account in Supabase → Authentication → Users → Add user
+   (with "Auto confirm user" ticked). Everyone after is added in the app (see
+   "Accounts" below).
 5. Upload the LibreOffice labels: sign in as an editor or admin, open
    **Labels → Upload** and drag in a customer folder (AMAZON, CULINA,
    LENHAMS…). Its folders are kept; existing labels can be skipped or replaced.
@@ -129,6 +131,18 @@ shapes (ITF-14, EAN-13, Code 128) or the printed digits. Pictures are stored
 once by SHA-256 (`label_images`) and served from `/label-images/<hash>`.
 A label is matched on its path in the library, so uploading again can skip
 or replace. Lock files, shortcuts, archives and other files are left out.
+
+## Accounts
+
+The app sends no email for now. An admin adds someone in **People and
+access**: the app makes the account and shows a temporary password once, to
+hand over. On their first sign-in they choose their own password and give
+their name ("Choose your password"); until they do, every page sends them
+there. The flag lives in the account's `app_metadata`, which only the server
+can change. **Reset password** on a person gives them a new temporary
+password and signs them out. This needs `SUPABASE_SECRET_KEY` (or the
+integration's `SUPABASE_SERVICE_ROLE_KEY`), server only. `/signup` and
+`/forgot-password` send people to sign in until email is set up again.
 
 ## Security
 

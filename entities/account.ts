@@ -13,19 +13,22 @@ export const signInSchema = z.object({
 	password: password(`Passwords are at least ${MIN_PASSWORD} characters.`),
 });
 
-export const signUpSchema = signInSchema.extend({
-	fullName: z
-		.string()
-		.trim()
-		.min(1, { error: "Enter your name, so labels you edit show who changed them." })
-		.max(80, { error: "Keep your name under 80 characters." }),
-});
+const fullName = z
+	.string()
+	.trim()
+	.min(1, { error: "Enter your name, so labels you edit show who changed them." })
+	.max(80, { error: "Keep your name under 80 characters." });
+
+export const signUpSchema = signInSchema.extend({ fullName });
 
 export const resetRequestSchema = z.object({ email: emailSchema });
 
 export const newPasswordSchema = z.object({
 	password: z.string().min(MIN_PASSWORD, { error: `Use at least ${MIN_PASSWORD} characters.` }),
 });
+
+/** First sign-in with a temporary password: their name and their own password. */
+export const choosePasswordSchema = newPasswordSchema.extend({ fullName });
 
 /** What Supabase says when a sign-up fails (AuthError's code, status and message). */
 export type SignUpFailure = { code?: string; status?: number; message: string };

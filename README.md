@@ -66,6 +66,7 @@ http://127.0.0.1:55324.
 | `pnpm db:generate`         | A migration from `lib/db/schema.ts`                  |
 | `pnpm db:migrate`          | Apply migrations                                     |
 | `pnpm access:allow`        | Put an email on the allowed list with a role         |
+| `pnpm access:reset --keep <email>` | Delete every account and allowed email except one admin (`--yes` to confirm) |
 | `pnpm labels:reset`        | Delete all labels, products, folders and pictures (`--yes` to confirm) |
 
 ## Where things are

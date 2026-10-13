@@ -10,22 +10,15 @@ import { siteOrigin } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState =
-	| { error?: string; message?: string; field?: Field; email?: string; fullName?: string }
+	| { error?: string; message?: string; field?: "email" | "password" | "name"; email?: string }
 	| undefined;
 
-type Field = "email" | "password" | "confirm" | "name";
-
-const FIELD_NAMES: Record<string, Field> = { fullName: "name", confirmPassword: "confirm" };
+type Field = "email" | "password" | "name";
 
 /** The first problem in a form, keeping the email typed so the form can show it again. */
 const failure = (error: Parameters<typeof firstIssue>[0], form: Record<string, string>): AuthState => {
 	const { field, message } = firstIssue<string>(error);
-	return {
-		error: message,
-		field: (field && (FIELD_NAMES[field] ?? field)) as Field | undefined,
-		email: form.email?.trim(),
-		fullName: form.fullName?.trim(),
-	};
+	return { error: message, field: (field === "fullName" ? "name" : field) as Field | undefined, email: form.email?.trim() };
 };
 
 export async function login(_: AuthState, formData: FormData): Promise<AuthState> {
@@ -60,7 +53,6 @@ export async function signup(_: AuthState, formData: FormData): Promise<AuthStat
 			error: "This email isn't on the allowed list yet. Ask an admin to add it, then try again.",
 			field: "email",
 			email: credentials.email,
-			fullName,
 		};
 	}
 
@@ -79,7 +71,6 @@ export async function signup(_: AuthState, formData: FormData): Promise<AuthStat
 		return {
 			error: exists ? "You already have an account. Sign in instead." : "Your account couldn't be created. Try again.",
 			email: credentials.email,
-			fullName,
 		};
 	}
 

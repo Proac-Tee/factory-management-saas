@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { type ChangeEvent, useActionState, useState } from "react";
 import { Field } from "@/components/field";
-import { MailIcon } from "@/components/icons";
+import { CheckIcon, MailIcon } from "@/components/icons";
 import { Spinner } from "@/components/spinner";
 import { button, ErrorLine, fieldClass, SavedLine } from "@/components/ui";
 import { type AuthState, login, requestReset, setNewPassword, signup } from "./actions";
@@ -42,8 +42,28 @@ const ACTIONS = { login, signup, forgot: requestReset, reset: setNewPassword };
 export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 	const [state, action, pending] = useActionState<AuthState, FormData>(ACTIONS[mode], undefined);
 	const [showPassword, setShowPassword] = useState(false);
+	// Whether the two new passwords match, once the second has been typed and left.
+	const [match, setMatch] = useState<"same" | "different" | null>(null);
 	const copy = COPY[mode];
-	const fieldError = (field: "email" | "password" | "name") => (state?.field === field ? state.error : undefined);
+	const confirming = mode === "signup" || mode === "reset";
+	const fieldError = (field: "email" | "password" | "confirm" | "name") => (state?.field === field ? state.error : undefined);
+
+	// The form clears after each try, so the match hint starts over too.
+	const [lastState, setLastState] = useState(state);
+	if (lastState !== state) {
+		setLastState(state);
+		setMatch(null);
+	}
+
+	const checkMatch = (form: HTMLFormElement | null, typing: boolean) => {
+		const password = (form?.elements.namedItem("password") as HTMLInputElement | null)?.value ?? "";
+		const confirm = (form?.elements.namedItem("confirmPassword") as HTMLInputElement | null)?.value ?? "";
+		if (!confirm) return setMatch(null);
+		// While typing, only say when they match; a mismatch waits until they leave the box.
+		if (password === confirm) setMatch("same");
+		else if (!typing || match !== null) setMatch("different");
+	};
+	const onPasswordInput = (e: ChangeEvent<HTMLInputElement>) => match !== null && checkMatch(e.currentTarget.form, false);
 	const otherError = state?.error && !state.field ? state.error : undefined;
 
 	const passwordField = (
@@ -66,6 +86,7 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 					autoComplete={mode === "login" ? "current-password" : "new-password"}
 					minLength={8}
 					required
+					onChange={confirming ? onPasswordInput : undefined}
 					aria-invalid={Boolean(fieldError("password"))}
 					aria-describedby={fieldError("password") ? "password-error" : undefined}
 					className={`${fieldClass} pr-20`}
@@ -83,8 +104,52 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 		</div>
 	);
 
+	const confirmError = fieldError("confirm") ?? (match === "different" ? "The two passwords don't match yet." : undefined);
+	const confirmField = (
+		<div className="flex flex-col gap-1.5">
+			<label htmlFor="confirmPassword" className="text-sm leading-[18px] font-medium text-graphite">
+				Type it again
+			</label>
+			<input
+				id="confirmPassword"
+				name="confirmPassword"
+				type={showPassword ? "text" : "password"}
+				autoComplete="new-password"
+				required
+				onChange={(e) => checkMatch(e.currentTarget.form, true)}
+				onBlur={(e) => checkMatch(e.currentTarget.form, false)}
+				aria-invalid={Boolean(confirmError)}
+				aria-describedby={confirmError ? "confirm-error" : match === "same" ? "confirm-ok" : undefined}
+				className={fieldClass}
+			/>
+			{confirmError ? (
+				<ErrorLine id="confirm-error" message={confirmError} />
+			) : (
+				match === "same" && (
+					<p id="confirm-ok" className="flex items-center gap-2 text-sm leading-5 font-bold text-pass">
+						<CheckIcon size={18} strokeWidth={2.5} className="shrink-0" />
+						Passwords match
+					</p>
+				)
+			)}
+		</div>
+	);
+
 	return (
-		<form action={action} className="flex w-full max-w-[400px] flex-1 flex-col gap-5 md:flex-none">
+		<form
+			action={action}
+			onSubmit={(e) => {
+				// A typo in the second box is caught here, before anything is sent or cleared.
+				const form = e.currentTarget;
+				const password = (form.elements.namedItem("password") as HTMLInputElement | null)?.value;
+				const confirm = form.elements.namedItem("confirmPassword") as HTMLInputElement | null;
+				if (confirming && confirm && confirm.value && confirm.value !== password) {
+					e.preventDefault();
+					setMatch("different");
+					confirm.focus();
+				}
+			}}
+			className="flex w-full max-w-[400px] flex-1 flex-col gap-5 md:flex-none">
 			<div className="flex flex-col gap-3 pb-2">
 				{/* eslint-disable-next-line @next/next/no-img-element */}
 				<img src="/ember-logo.png" alt="Ember" width={96} height={56} className="mb-6" />
@@ -95,7 +160,15 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 			{notice && <ErrorLine message={notice} />}
 
 			{mode === "signup" && (
-				<Field label="Your name" name="fullName" autoComplete="name" required maxLength={60} defaultValue="" error={fieldError("name")} />
+				<Field
+					label="Your name"
+					name="fullName"
+					autoComplete="name"
+					required
+					maxLength={60}
+					defaultValue={state?.fullName ?? ""}
+					error={fieldError("name")}
+				/>
 			)}
 
 			{mode !== "reset" && (
@@ -123,7 +196,8 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 				</div>
 			)}
 
-			{(mode === "login" || mode === "signup" || mode === "reset") && passwordField}
+			{(mode === "login" || confirming) && passwordField}
+			{confirming && confirmField}
 
 			<div className="mt-auto flex flex-col gap-4 pt-6 md:mt-4">
 				{otherError && <ErrorLine message={otherError} />}

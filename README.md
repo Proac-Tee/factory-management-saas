@@ -28,9 +28,10 @@ The same rules are enforced twice: in the app (`entities/roles.ts`,
    6543); the direct `db.<ref>.supabase.co` host is IPv6-only and won't
    connect from most networks.
 3. `pnpm db:migrate`
-4. Add the first admin: `pnpm access:allow --email you@example.com --role admin`.
-   That admin's account is made by signing up once; everyone after is added in
-   the app (see "Accounts" below).
+4. Add the first admin: `pnpm access:allow --email you@example.com --role admin`,
+   then make their account in Supabase → Authentication → Users → Add user
+   (with "Auto confirm user" ticked). Everyone after is added in the app (see
+   "Accounts" below).
 5. Upload the LibreOffice labels: sign in as an editor or admin, open
    **Labels → Upload** and drag in a customer folder (AMAZON, CULINA,
    LENHAMS…). Its folders are kept; existing labels can be skipped or replaced.

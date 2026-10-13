@@ -2,6 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { type Action, can, type Role } from "@/entities/roles";
+import { MUST_CHANGE_PASSWORD } from "@/entities/temporary-password";
 import { findMember } from "@/data-access/members";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +15,10 @@ export const getClaims = cache(async () => {
 	if (error || !data) return null;
 	return data.claims;
 });
+
+/** Set by the server when an admin makes or resets the account; only the server can clear it. */
+export const mustChoosePassword = (claims: { app_metadata?: Record<string, unknown> }) =>
+	claims.app_metadata?.[MUST_CHANGE_PASSWORD] === true;
 
 export const getCurrentUser = async () => {
 	const claims = await getClaims();
@@ -35,6 +40,8 @@ export type Member = {
  */
 export const getMember = cache(async (): Promise<Member> => {
 	const user = await getCurrentUser();
+	// Signed in with a temporary password: they choose their own before anything else.
+	if (mustChoosePassword(user.claims)) redirect("/choose-password");
 	const member = await findMember(user.claims);
 	if (!member) redirect("/auth/removed");
 	return { ...member, claims: user.claims };

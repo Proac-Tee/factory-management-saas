@@ -4,13 +4,15 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAllowed } from "@/data-access/members";
-import { newPasswordSchema, resetRequestSchema, signInSchema, signUpProblem, signUpSchema } from "@/entities/account";
+import { choosePasswordSchema, newPasswordSchema, resetRequestSchema, signInSchema, signUpProblem, signUpSchema } from "@/entities/account";
+import { clearMustChangePassword, setOwnName } from "@/data-access/accounts";
+import { getClaims, mustChoosePassword } from "@/lib/auth";
 import { firstIssue, formFields } from "@/entities/validation";
 import { siteOrigin } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState =
-	| { error?: string; message?: string; field?: "email" | "password" | "name"; email?: string }
+	| { error?: string; message?: string; field?: "email" | "password" | "name"; email?: string; fullName?: string }
 	| undefined;
 
 type Field = "email" | "password" | "name";
@@ -18,7 +20,12 @@ type Field = "email" | "password" | "name";
 /** The first problem in a form, keeping the email typed so the form can show it again. */
 const failure = (error: Parameters<typeof firstIssue>[0], form: Record<string, string>): AuthState => {
 	const { field, message } = firstIssue<string>(error);
-	return { error: message, field: (field === "fullName" ? "name" : field) as Field | undefined, email: form.email?.trim() };
+	return {
+		error: message,
+		field: (field === "fullName" ? "name" : field) as Field | undefined,
+		email: form.email?.trim(),
+		fullName: form.fullName?.trim(),
+	};
 };
 
 export async function login(_: AuthState, formData: FormData): Promise<AuthState> {
@@ -28,7 +35,7 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
 	const credentials = parsed.data;
 
 	const supabase = await createClient();
-	const { error } = await supabase.auth.signInWithPassword(credentials);
+	const { data, error } = await supabase.auth.signInWithPassword(credentials);
 	// Generic message so the form doesn't reveal which emails are registered.
 	if (error) {
 		return {
@@ -37,6 +44,39 @@ export async function login(_: AuthState, formData: FormData): Promise<AuthState
 		};
 	}
 
+	revalidatePath("/", "layout");
+	// A temporary password from an admin: they choose their own first.
+	redirect(data.user && mustChoosePassword(data.user) ? "/choose-password" : "/labels");
+}
+
+/**
+ * First sign-in with a temporary password: saves their own password and
+ * name, then stops asking. The temporary password stops working.
+ */
+export async function choosePassword(_: AuthState, formData: FormData): Promise<AuthState> {
+	const claims = await getClaims();
+	if (!claims) redirect("/login");
+	const form = formFields(formData);
+	const parsed = choosePasswordSchema.safeParse(form);
+	if (!parsed.success) return failure(parsed.error, form);
+	const { password, fullName } = parsed.data;
+
+	const supabase = await createClient();
+	const { error } = await supabase.auth.updateUser({ password });
+	if (error) {
+		const same = error.code === "same_password";
+		return {
+			error: same ? "Choose a different password from the temporary one." : signUpProblem(error).message,
+			field: "password",
+			fullName,
+		};
+	}
+	await setOwnName(claims, fullName);
+	if (!(await clearMustChangePassword(claims.sub))) {
+		return { error: "Your password was saved, but the app couldn't finish. Sign in again with your new password.", fullName };
+	}
+	// A fresh session, so the app sees the account no longer needs a new password.
+	await supabase.auth.refreshSession();
 	revalidatePath("/", "layout");
 	redirect("/labels");
 }

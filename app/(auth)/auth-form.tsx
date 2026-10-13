@@ -6,9 +6,9 @@ import { Field } from "@/components/field";
 import { MailIcon } from "@/components/icons";
 import { Spinner } from "@/components/spinner";
 import { button, ErrorLine, fieldClass, SavedLine } from "@/components/ui";
-import { type AuthState, login, requestReset, setNewPassword, signup } from "./actions";
+import { type AuthState, choosePassword, login, requestReset, setNewPassword, signup } from "./actions";
 
-type Mode = "login" | "signup" | "forgot" | "reset";
+type Mode = "login" | "signup" | "forgot" | "reset" | "choose";
 
 const COPY: Record<Mode, { title: string; intro: string; button: string; busy: string }> = {
 	login: {
@@ -29,6 +29,12 @@ const COPY: Record<Mode, { title: string; intro: string; button: string; busy: s
 		button: "Send reset link",
 		busy: "Sending…",
 	},
+	choose: {
+		title: "Choose your password",
+		intro: "You signed in with a temporary password. Choose your own to carry on; the temporary one stops working.",
+		button: "Save and carry on",
+		busy: "Saving…",
+	},
 	reset: {
 		title: "Set a new password",
 		intro: "Use at least 8 characters. You stay signed in after saving.",
@@ -37,7 +43,7 @@ const COPY: Record<Mode, { title: string; intro: string; button: string; busy: s
 	},
 };
 
-const ACTIONS = { login, signup, forgot: requestReset, reset: setNewPassword };
+const ACTIONS = { login, signup, forgot: requestReset, reset: setNewPassword, choose: choosePassword };
 
 export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 	const [state, action, pending] = useActionState<AuthState, FormData>(ACTIONS[mode], undefined);
@@ -52,11 +58,7 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 				<label htmlFor="password" className="text-sm leading-[18px] font-medium text-graphite">
 					{mode === "login" ? "Password" : "New password"}
 				</label>
-				{mode === "login" && (
-					<Link href="/forgot-password" className="text-sm font-bold underline underline-offset-2">
-						Forgot it?
-					</Link>
-				)}
+				{mode === "login" && <span className="text-sm text-graphite">Forgot it? Ask an admin to reset it.</span>}
 			</div>
 			<div className="relative">
 				<input
@@ -94,11 +96,19 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 
 			{notice && <ErrorLine message={notice} />}
 
-			{mode === "signup" && (
-				<Field label="Your name" name="fullName" autoComplete="name" required maxLength={60} defaultValue="" error={fieldError("name")} />
+			{(mode === "signup" || mode === "choose") && (
+				<Field
+					label="Your name"
+					name="fullName"
+					autoComplete="name"
+					required
+					maxLength={60}
+					defaultValue={state?.fullName ?? ""}
+					error={fieldError("name")}
+				/>
 			)}
 
-			{mode !== "reset" && (
+			{mode !== "reset" && mode !== "choose" && (
 				<div className="flex flex-col gap-1.5">
 					<label htmlFor="email" className="text-sm leading-[18px] font-medium text-graphite">
 						Work email
@@ -123,7 +133,7 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 				</div>
 			)}
 
-			{(mode === "login" || mode === "signup" || mode === "reset") && passwordField}
+			{mode !== "forgot" && passwordField}
 
 			<div className="mt-auto flex flex-col gap-4 pt-6 md:mt-4">
 				{otherError && <ErrorLine message={otherError} />}
@@ -133,15 +143,9 @@ export function AuthForm({ mode, notice }: { mode: Mode; notice?: string }) {
 					{pending ? copy.busy : copy.button}
 				</button>
 				<p className="border-t border-rule pt-4 text-sm leading-5 text-graphite">
-					{mode === "login" && (
-						<>
-							First time here?{" "}
-							<Link href="/signup" className="font-bold text-ink underline underline-offset-2">
-								Create your password
-							</Link>
-						</>
-					)}
-					{mode !== "login" && (
+					{mode === "login" && "First time here? Ask an admin to add you; they'll give you a temporary password."}
+					{mode === "choose" && "This is the only time you'll be asked."}
+					{mode !== "login" && mode !== "choose" && (
 						<>
 							Have a password already?{" "}
 							<Link href="/login" className="font-bold text-ink underline underline-offset-2">

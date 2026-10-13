@@ -10,7 +10,6 @@
 
 import { parseArgs } from "node:util";
 import postgres from "postgres";
-import { z } from "zod";
 import { emailSchema } from "../entities/roles";
 import { databaseUrl } from "../lib/env";
 
